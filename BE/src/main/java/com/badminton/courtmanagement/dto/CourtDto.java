@@ -77,6 +77,9 @@ public class CourtDto {
     @Schema(description = "Khoảng cách từ vị trí hiện tại (km)", example = "2.5")
     private Double distance;
     
+    @Schema(description = "Giá khởi điểm (VND/giờ)", example = "80000")
+    private BigDecimal price;
+    
     @Schema(description = "Thời gian tạo")
     private LocalDateTime createdAt;
     

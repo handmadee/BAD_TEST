@@ -21,6 +21,7 @@ public interface TeamMemberRepository extends JpaRepository<TeamMember, Long> {
     // Find by user
     List<TeamMember> findByUser(User user);
     List<TeamMember> findByUserOrderByCreatedAtDesc(User user);
+    List<TeamMember> findByUserAndStatus(User user, TeamMember.MemberStatus status);
     
     // Find by team post and user
     Optional<TeamMember> findByTeamPostAndUser(TeamPost teamPost, User user);

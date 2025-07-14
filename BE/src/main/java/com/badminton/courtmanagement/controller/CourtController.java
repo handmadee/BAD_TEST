@@ -2,6 +2,8 @@ package com.badminton.courtmanagement.controller;
 
 import com.badminton.courtmanagement.dto.ApiResponse;
 import com.badminton.courtmanagement.dto.PageResponse;
+import com.badminton.courtmanagement.dto.CourtDto;
+import com.badminton.courtmanagement.service.CourtService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -13,12 +15,15 @@ import org.springframework.web.bind.annotation.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.math.BigDecimal;
 
 @RestController
 @RequestMapping("/api/courts")
 @RequiredArgsConstructor
 @Tag(name = "Courts", description = "API quản lý sân cầu lông")
 public class CourtController {
+
+    private final CourtService courtService;
 
     @GetMapping
     @Operation(summary = "Lấy danh sách sân", description = "Lấy danh sách tất cả sân cầu lông với phân trang")
@@ -79,6 +84,33 @@ public class CourtController {
         );
         
         return ApiResponse.success(types);
+    }
+
+    @GetMapping("/search")
+    @Operation(summary = "Tìm kiếm sân", description = "Tìm kiếm sân cầu lông với các bộ lọc và sắp xếp theo khoảng cách")
+    public ApiResponse<PageResponse<CourtDto>> searchCourts(
+            @Parameter(description = "Từ khóa tìm kiếm") @RequestParam(required = false) String keyword,
+            @Parameter(description = "Loại thể thao") @RequestParam(required = false) String sportType,
+            @Parameter(description = "Đánh giá tối thiểu") @RequestParam(required = false) BigDecimal minRating,
+            @Parameter(description = "Vĩ độ (để tính khoảng cách)") @RequestParam(required = false) BigDecimal latitude,
+            @Parameter(description = "Kinh độ (để tính khoảng cách)") @RequestParam(required = false) BigDecimal longitude,
+            @Parameter(description = "Bán kính tìm kiếm (km)") @RequestParam(required = false) Double radiusKm,
+            @PageableDefault(size = 20) Pageable pageable) {
+        
+        PageResponse<CourtDto> courts = courtService.searchCourts(
+            keyword, sportType, minRating, latitude, longitude, radiusKm, pageable);
+        return ApiResponse.success(courts);
+    }
+
+    @GetMapping("/nearby")
+    @Operation(summary = "Lấy sân gần vị trí hiện tại", description = "Lấy danh sách sân trong bán kính từ vị trí hiện tại")
+    public ApiResponse<List<CourtDto>> getNearbyCourts(
+            @Parameter(description = "Vĩ độ", required = true) @RequestParam BigDecimal latitude,
+            @Parameter(description = "Kinh độ", required = true) @RequestParam BigDecimal longitude,
+            @Parameter(description = "Bán kính tìm kiếm (km)", example = "10") @RequestParam(defaultValue = "10") Double radiusKm) {
+        
+        List<CourtDto> courts = courtService.getNearbyCourtsByRadius(latitude, longitude, radiusKm);
+        return ApiResponse.success(courts);
     }
 
     @GetMapping("/{id}/details")

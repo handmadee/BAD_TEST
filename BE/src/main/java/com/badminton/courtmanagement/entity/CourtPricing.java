@@ -29,19 +29,35 @@ public class CourtPricing extends BaseEntity {
     @JoinColumn(name = "court_id", nullable = false)
     private Court court;
     
-    @Column(name = "day_of_week", length = 10)
-    private String dayOfWeek;
+    @Column(nullable = false, length = 255)
+    @Builder.Default
+    private String name = "Bảng giá chính thức";
     
-    @Column(name = "start_time")
+    @Enumerated(EnumType.STRING)
+    @Column(name = "day_type", nullable = false)
+    private DayType dayType;
+    
+    @NotNull
+    @Column(name = "start_time", nullable = false)
     private LocalTime startTime;
     
-    @Column(name = "end_time")
+    @NotNull
+    @Column(name = "end_time", nullable = false)
     private LocalTime endTime;
     
     @NotNull
-    @Column(nullable = false, precision = 10, scale = 2)
-    private BigDecimal price;
+    @Column(name = "base_price", nullable = false, precision = 10, scale = 2)
+    private BigDecimal basePrice;
     
-    @Column(length = 50)
-    private String description;
+    @Column(length = 3)
+    @Builder.Default
+    private String currency = "VND";
+    
+    @Column(name = "is_active", nullable = false)
+    @Builder.Default
+    private Boolean isActive = true;
+    
+    public enum DayType {
+        WEEKDAY, WEEKEND
+    }
 } 

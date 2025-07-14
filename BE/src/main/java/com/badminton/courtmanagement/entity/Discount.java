@@ -31,7 +31,7 @@ public class Discount extends BaseEntity {
     private String code;
     
     @NotBlank
-    @Column(nullable = false, length = 200)
+    @Column(nullable = false, length = 255)
     private String name;
     
     @Column(columnDefinition = "TEXT")
@@ -46,27 +46,24 @@ public class Discount extends BaseEntity {
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal value;
     
-    @Column(name = "min_amount", precision = 10, scale = 2)
-    private BigDecimal minAmount;
-    
-    @Column(name = "max_discount", precision = 10, scale = 2)
-    private BigDecimal maxDiscount;
-    
-    @NotNull
-    @Column(name = "start_date", nullable = false)
-    private LocalDateTime startDate;
-    
-    @NotNull
-    @Column(name = "end_date", nullable = false)
-    private LocalDateTime endDate;
-    
-    @Builder.Default
     @Column(name = "usage_limit")
-    private Integer usageLimit = 1;
+    private Integer usageLimit;
     
     @Builder.Default
-    @Column(name = "used_count")
-    private Integer usedCount = 0;
+    @Column(name = "current_usage")
+    private Integer currentUsage = 0;
+    
+    @NotNull
+    @Column(name = "valid_from", nullable = false)
+    private LocalDateTime validFrom;
+    
+    @NotNull
+    @Column(name = "valid_until", nullable = false)
+    private LocalDateTime validUntil;
+    
+    @Column(name = "min_booking_amount", precision = 10, scale = 2)
+    @Builder.Default
+    private BigDecimal minBookingAmount = BigDecimal.ZERO;
     
     @Builder.Default
     @Column(name = "is_active", nullable = false)

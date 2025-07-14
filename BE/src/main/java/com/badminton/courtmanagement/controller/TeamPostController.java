@@ -81,6 +81,17 @@ public class TeamPostController {
         return ApiResponse.success(teamPosts);
     }
     
+    @GetMapping("/joined-teams")
+    @Operation(summary = "Lấy danh sách đội đã tham gia", security = @SecurityRequirement(name = "bearerAuth"))
+    @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
+    public ApiResponse<PageResponse<TeamPostDto>> getJoinedTeams(
+            @PageableDefault(size = 20) Pageable pageable) {
+        
+        log.debug("Getting joined teams");
+        PageResponse<TeamPostDto> teamPosts = teamPostService.getJoinedTeams(pageable);
+        return ApiResponse.success(teamPosts);
+    }
+
     @GetMapping("/my-posts")
     @Operation(summary = "Lấy danh sách bài đăng của tôi", security = @SecurityRequirement(name = "bearerAuth"))
     @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
@@ -117,6 +128,18 @@ public class TeamPostController {
         log.debug("User joining team post id: {}", id);
         TeamMemberDto teamMember = teamPostService.joinTeamPost(id);
         return ApiResponse.success("Đã gửi yêu cầu tham gia đội", teamMember);
+    }
+    
+    @PostMapping("/{id}/message-and-join")
+    @Operation(summary = "Gửi tin nhắn và yêu cầu tham gia đội", security = @SecurityRequirement(name = "bearerAuth"))
+    @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
+    public ApiResponse<TeamMemberDto> sendMessageAndJoinRequest(
+            @Parameter(description = "ID của bài đăng") @PathVariable Long id,
+            @Parameter(description = "Nội dung tin nhắn") @RequestParam String message) {
+        
+        log.debug("User sending message and join request for team post id: {}", id);
+        TeamMemberDto teamMember = teamPostService.sendMessageAndJoinRequest(id, message);
+        return ApiResponse.success("Đã gửi tin nhắn và yêu cầu tham gia đội", teamMember);
     }
     
     @PostMapping("/{id}/leave")

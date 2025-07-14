@@ -2,33 +2,94 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { teamService, authService } from "@/lib";
-import type { CreateTeamPostRequest } from "@/types/api";
+import { teamService, courtService } from "@/lib";
+import {
+    uploadService,
+    validateImageFile,
+    createPreviewUrl,
+    revokePreviewUrl,
+} from "@/lib/upload-service";
+import type { CreateTeamPostRequest, Court } from "@/types/api";
 import { CustomSelect } from "@/components/ui";
 import Header from "@/components/layout/Header";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import toast from "react-hot-toast";
 
 export default function CreateTeamPage() {
     const [formData, setFormData] = useState({
         title: "",
         description: "",
         playDate: "",
-        location: "",
+        sport: "" as "Cầu lông" | "Pickleball" | "",
         maxPlayers: 4,
         skillLevel: "",
+        images: [] as string[],
+        // Địa điểm options
+        locationMode: "custom" as "court" | "custom",
+        selectedCourtId: "",
+        customLocation: "",
+        customAddress: "",
     });
 
     const [errors, setErrors] = useState<Record<string, string>>({});
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState(false);
+    const [uploadingImages, setUploadingImages] = useState(false);
+    const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+    const [previewUrls, setPreviewUrls] = useState<string[]>([]);
+    const [courts, setCourts] = useState<Court[]>([]);
+    const [loadingCourts, setLoadingCourts] = useState(false);
 
     // Options for dropdowns
+    const sportOptions = [
+        { value: "", label: "Chọn môn thể thao..." },
+        { value: "BADMINTON", label: "Cầu lông" },
+        { value: "PICKLEBALL", label: "Pickleball" },
+    ];
+
     const skillOptions = [
         { value: "", label: "Chọn trình độ..." },
-        { value: "Yếu", label: "Yếu" },
-        { value: "Trung bình", label: "Trung bình" },
-        { value: "Khá", label: "Khá" },
-        { value: "Giỏi", label: "Giỏi" },
+        { value: "WEAK", label: "Yếu" },
+        { value: "AVERAGE", label: "Trung bình" },
+        { value: "GOOD", label: "Khá" },
+        { value: "EXCELLENT", label: "Giỏi" },
+    ];
+
+    const locationModeOptions = [
+        { value: "custom", label: "Tự điền địa điểm" },
+        { value: "court", label: "Chọn sân từ hệ thống" },
+    ];
+
+    // Load courts from API
+    useEffect(() => {
+        if (formData.locationMode === "court") {
+            loadCourts();
+        }
+    }, [formData.locationMode]);
+
+    const loadCourts = async () => {
+        try {
+            setLoadingCourts(true);
+            const response = await courtService.getCourts({
+                page: 0,
+                size: 100,
+            });
+            setCourts(response.data.content || []);
+        } catch (error) {
+            console.error("Error loading courts:", error);
+            toast.error("Không thể tải danh sách sân");
+        } finally {
+            setLoadingCourts(false);
+        }
+    };
+
+    // Get court options for dropdown
+    const courtOptions = [
+        { value: "", label: "Chọn sân..." },
+        ...courts.map((court) => ({
+            value: court.id.toString(),
+            label: `${court.name} - ${court.address}`,
+        })),
     ];
 
     const validateForm = () => {
@@ -38,8 +99,22 @@ export default function CreateTeamPage() {
         if (!formData.description.trim())
             newErrors.description = "Vui lòng nhập mô tả";
         if (!formData.playDate) newErrors.playDate = "Vui lòng chọn ngày chơi";
-        if (!formData.location.trim())
-            newErrors.location = "Vui lòng nhập địa điểm";
+        if (!formData.sport) newErrors.sport = "Vui lòng chọn môn thể thao";
+
+        // Validate location based on mode
+        if (formData.locationMode === "court") {
+            if (!formData.selectedCourtId) {
+                newErrors.selectedCourtId = "Vui lòng chọn sân";
+            }
+        } else {
+            if (!formData.customLocation.trim()) {
+                newErrors.customLocation = "Vui lòng nhập tên địa điểm";
+            }
+            if (!formData.customAddress.trim()) {
+                newErrors.customAddress = "Vui lòng nhập địa chỉ";
+            }
+        }
+
         if (formData.maxPlayers < 2)
             newErrors.maxPlayers = "Số người tối thiểu là 2";
         if (formData.maxPlayers > 20)
@@ -47,6 +122,67 @@ export default function CreateTeamPage() {
 
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
+    };
+
+    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(e.target.files || []);
+
+        // Validate each file
+        const validFiles: File[] = [];
+        for (const file of files) {
+            const validation = validateImageFile(file);
+            if (validation.valid) {
+                validFiles.push(file);
+            } else {
+                toast.error(validation.error || "File không hợp lệ");
+            }
+        }
+
+        // Limit to 3 images max
+        if (selectedFiles.length + validFiles.length > 3) {
+            toast.error("Tối đa 3 hình ảnh");
+            return;
+        }
+
+        // Create preview URLs
+        const newPreviewUrls = validFiles.map((file) => createPreviewUrl(file));
+
+        setSelectedFiles((prev) => [...prev, ...validFiles]);
+        setPreviewUrls((prev) => [...prev, ...newPreviewUrls]);
+    };
+
+    const removeImage = (index: number) => {
+        const urlToRevoke = previewUrls[index];
+        revokePreviewUrl(urlToRevoke);
+
+        setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
+        setPreviewUrls((prev) => prev.filter((_, i) => i !== index));
+
+        // Also remove from uploaded images if exists
+        setFormData((prev) => ({
+            ...prev,
+            images: prev.images.filter((_, i) => i !== index),
+        }));
+    };
+
+    const uploadImages = async (): Promise<string[]> => {
+        if (selectedFiles.length === 0) return [];
+
+        setUploadingImages(true);
+        try {
+            const uploadPromises = selectedFiles.map((file) =>
+                uploadService.uploadImage(file, "post")
+            );
+
+            const responses = await Promise.all(uploadPromises);
+            return responses.map((response) => response.data.fileUrl);
+        } catch (error) {
+            console.error("Image upload error:", error);
+            toast.error("Lỗi upload hình ảnh");
+            return [];
+        } finally {
+            setUploadingImages(false);
+        }
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -59,17 +195,43 @@ export default function CreateTeamPage() {
         setLoading(true);
 
         try {
+            // Upload images first
+            const imageUrls = await uploadImages();
+
+            // Convert date to ISO string for backend
+            const playDateTime = new Date(
+                formData.playDate + "T12:00:00"
+            ).toISOString();
+
+            // Calculate final location based on mode
+            let finalLocation = "";
+            if (formData.locationMode === "court") {
+                const selectedCourt = courts.find(
+                    (court) => court.id.toString() === formData.selectedCourtId
+                );
+                finalLocation = selectedCourt
+                    ? `${selectedCourt.name} - ${selectedCourt.address}`
+                    : "";
+            } else {
+                finalLocation = `${formData.customLocation} - ${formData.customAddress}`;
+            }
+
             const teamPostData: CreateTeamPostRequest = {
                 title: formData.title,
                 description: formData.description,
-                playDate: formData.playDate,
-                location: formData.location,
+                playDate: playDateTime,
+                location: finalLocation,
                 maxPlayers: formData.maxPlayers,
                 skillLevel: formData.skillLevel || undefined,
+                sportType: formData.sport,
+                images: imageUrls,
             };
 
             await teamService.createTeamPost(teamPostData);
             setSuccess(true);
+
+            // Cleanup preview URLs
+            previewUrls.forEach((url) => revokePreviewUrl(url));
 
             // Reset form after 3 seconds
             setTimeout(() => {
@@ -77,10 +239,17 @@ export default function CreateTeamPage() {
                     title: "",
                     description: "",
                     playDate: "",
-                    location: "",
+                    sport: "",
                     maxPlayers: 4,
                     skillLevel: "",
+                    images: [],
+                    locationMode: "custom",
+                    selectedCourtId: "",
+                    customLocation: "",
+                    customAddress: "",
                 });
+                setSelectedFiles([]);
+                setPreviewUrls([]);
                 setErrors({});
                 setSuccess(false);
             }, 3000);
@@ -224,6 +393,7 @@ export default function CreateTeamPage() {
                                     placeholder="Mô tả về buổi chơi, yêu cầu với đồng đội..."
                                     rows={4}
                                     className="w-full px-6 py-4 text-lg border-2 border-gray-200 rounded-2xl focus:border-red-500 focus:ring-0 transition-colors resize-none"
+                                    disabled={loading || uploadingImages}
                                 />
                                 {errors.description && (
                                     <p className="mt-2 text-red-500 text-sm font-medium">
@@ -232,7 +402,209 @@ export default function CreateTeamPage() {
                                 )}
                             </div>
 
-                            {/* Date and Time */}
+                            {/* Sport Selection */}
+                            <div>
+                                <label className="block text-lg font-bold text-gray-700 mb-3">
+                                    Môn thể thao{" "}
+                                    <span className="text-red-500">*</span>
+                                </label>
+                                <CustomSelect
+                                    value={formData.sport}
+                                    onChange={(value) =>
+                                        handleSelectChange("sport", value)
+                                    }
+                                    options={sportOptions}
+                                    className="w-full"
+                                />
+                                {errors.sport && (
+                                    <p className="mt-2 text-red-500 text-sm font-medium">
+                                        {errors.sport}
+                                    </p>
+                                )}
+                            </div>
+
+                            {/* Location Mode */}
+                            <div>
+                                <label className="block text-lg font-bold text-gray-700 mb-3">
+                                    Chọn cách nhập địa điểm{" "}
+                                    <span className="text-red-500">*</span>
+                                </label>
+                                <CustomSelect
+                                    value={formData.locationMode}
+                                    onChange={(value) =>
+                                        handleSelectChange(
+                                            "locationMode",
+                                            value as "court" | "custom"
+                                        )
+                                    }
+                                    options={locationModeOptions}
+                                    className="w-full"
+                                />
+                            </div>
+
+                            {/* Court Selection (when locationMode is "court") */}
+                            {formData.locationMode === "court" && (
+                                <div>
+                                    <label className="block text-lg font-bold text-gray-700 mb-3">
+                                        Chọn sân{" "}
+                                        <span className="text-red-500">*</span>
+                                    </label>
+                                    {loadingCourts ? (
+                                        <div className="flex items-center justify-center py-4 text-gray-500">
+                                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-500 mr-3"></div>
+                                            Đang tải danh sách sân...
+                                        </div>
+                                    ) : (
+                                        <CustomSelect
+                                            value={formData.selectedCourtId}
+                                            onChange={(value) =>
+                                                handleSelectChange(
+                                                    "selectedCourtId",
+                                                    value
+                                                )
+                                            }
+                                            options={courtOptions}
+                                            className="w-full"
+                                        />
+                                    )}
+                                    {errors.selectedCourtId && (
+                                        <p className="mt-2 text-red-500 text-sm font-medium">
+                                            {errors.selectedCourtId}
+                                        </p>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Custom Location (when locationMode is "custom") */}
+                            {formData.locationMode === "custom" && (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div>
+                                        <label className="block text-lg font-bold text-gray-700 mb-3">
+                                            Tên địa điểm{" "}
+                                            <span className="text-red-500">
+                                                *
+                                            </span>
+                                        </label>
+                                        <input
+                                            type="text"
+                                            name="customLocation"
+                                            value={formData.customLocation}
+                                            onChange={handleChange}
+                                            placeholder="VD: Sân cầu lông ABC"
+                                            className="w-full px-6 py-4 text-lg border-2 border-gray-200 rounded-2xl focus:border-red-500 focus:ring-0 transition-colors"
+                                        />
+                                        {errors.customLocation && (
+                                            <p className="mt-2 text-red-500 text-sm font-medium">
+                                                {errors.customLocation}
+                                            </p>
+                                        )}
+                                    </div>
+                                    <div>
+                                        <label className="block text-lg font-bold text-gray-700 mb-3">
+                                            Địa chỉ{" "}
+                                            <span className="text-red-500">
+                                                *
+                                            </span>
+                                        </label>
+                                        <input
+                                            type="text"
+                                            name="customAddress"
+                                            value={formData.customAddress}
+                                            onChange={handleChange}
+                                            placeholder="VD: 123 Nguyễn Văn Linh, Đà Nẵng"
+                                            className="w-full px-6 py-4 text-lg border-2 border-gray-200 rounded-2xl focus:border-red-500 focus:ring-0 transition-colors"
+                                        />
+                                        {errors.customAddress && (
+                                            <p className="mt-2 text-red-500 text-sm font-medium">
+                                                {errors.customAddress}
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Image Upload */}
+                            <div>
+                                <label className="block text-lg font-bold text-gray-700 mb-3">
+                                    Hình ảnh (tối đa 3 ảnh)
+                                </label>
+
+                                {/* File Input */}
+                                <div className="mb-4">
+                                    <input
+                                        type="file"
+                                        multiple
+                                        accept="image/*"
+                                        onChange={handleFileSelect}
+                                        className="hidden"
+                                        id="image-upload"
+                                        disabled={loading || uploadingImages}
+                                    />
+                                    <label
+                                        htmlFor="image-upload"
+                                        className="inline-flex items-center gap-3 px-6 py-4 bg-gray-100 border-2 border-dashed border-gray-300 rounded-2xl cursor-pointer hover:bg-gray-50 hover:border-red-500 transition-colors"
+                                    >
+                                        <svg
+                                            className="w-6 h-6 text-gray-500"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            viewBox="0 0 24 24"
+                                        >
+                                            <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                strokeWidth={2}
+                                                d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                                            />
+                                        </svg>
+                                        <span className="text-lg text-gray-600">
+                                            Chọn hình ảnh
+                                        </span>
+                                    </label>
+                                </div>
+
+                                {/* Image Previews */}
+                                {previewUrls.length > 0 && (
+                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                        {previewUrls.map((url, index) => (
+                                            <div
+                                                key={index}
+                                                className="relative group aspect-square"
+                                            >
+                                                <img
+                                                    src={url}
+                                                    alt={`Preview ${index + 1}`}
+                                                    className="w-full h-full object-cover rounded-xl border-2 border-gray-200"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        removeImage(index)
+                                                    }
+                                                    className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center text-sm hover:bg-red-600 transition-colors"
+                                                    disabled={
+                                                        loading ||
+                                                        uploadingImages
+                                                    }
+                                                >
+                                                    ×
+                                                </button>
+                                                {uploadingImages && (
+                                                    <div className="absolute inset-0 bg-black bg-opacity-50 rounded-xl flex items-center justify-center">
+                                                        <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+
+                                <p className="mt-2 text-sm text-gray-500">
+                                    Hỗ trợ JPG, PNG, GIF. Tối đa 10MB mỗi file.
+                                </p>
+                            </div>
+
+                            {/* Date and Skill Level */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                 <div>
                                     <label className="block text-lg font-bold text-gray-700 mb-3">
@@ -274,52 +646,30 @@ export default function CreateTeamPage() {
                                 </div>
                             </div>
 
-                            {/* Location and Players */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                <div>
-                                    <label className="block text-lg font-bold text-gray-700 mb-3">
-                                        Địa điểm{" "}
-                                        <span className="text-red-500">*</span>
-                                    </label>
-                                    <input
-                                        type="text"
-                                        name="location"
-                                        value={formData.location}
-                                        onChange={handleChange}
-                                        placeholder="VD: Sân cầu lông ABC, Quận 1, TP.HCM"
-                                        className="w-full px-6 py-4 text-lg border-2 border-gray-200 rounded-2xl focus:border-red-500 focus:ring-0 transition-colors"
-                                    />
-                                    {errors.location && (
-                                        <p className="mt-2 text-red-500 text-sm font-medium">
-                                            {errors.location}
-                                        </p>
-                                    )}
-                                </div>
-
-                                <div>
-                                    <label className="block text-lg font-bold text-gray-700 mb-3">
-                                        Số người tối đa{" "}
-                                        <span className="text-red-500">*</span>
-                                    </label>
-                                    <input
-                                        type="number"
-                                        name="maxPlayers"
-                                        value={formData.maxPlayers}
-                                        onChange={handleChange}
-                                        min="2"
-                                        max="20"
-                                        className="w-full px-6 py-4 text-lg border-2 border-gray-200 rounded-2xl focus:border-red-500 focus:ring-0 transition-colors"
-                                    />
-                                    {errors.maxPlayers && (
-                                        <p className="mt-2 text-red-500 text-sm font-medium">
-                                            {errors.maxPlayers}
-                                        </p>
-                                    )}
-                                    <p className="mt-2 text-sm text-gray-500">
-                                        Bao gồm cả bạn (tối thiểu 2, tối đa 20
-                                        người)
+                            {/* Players */}
+                            <div>
+                                <label className="block text-lg font-bold text-gray-700 mb-3">
+                                    Số người tối đa{" "}
+                                    <span className="text-red-500">*</span>
+                                </label>
+                                <input
+                                    type="number"
+                                    name="maxPlayers"
+                                    value={formData.maxPlayers}
+                                    onChange={handleChange}
+                                    min="2"
+                                    max="20"
+                                    className="w-full px-6 py-4 text-lg border-2 border-gray-200 rounded-2xl focus:border-red-500 focus:ring-0 transition-colors"
+                                />
+                                {errors.maxPlayers && (
+                                    <p className="mt-2 text-red-500 text-sm font-medium">
+                                        {errors.maxPlayers}
                                     </p>
-                                </div>
+                                )}
+                                <p className="mt-2 text-sm text-gray-500">
+                                    Bao gồm cả bạn (tối thiểu 2, tối đa 20
+                                    người)
+                                </p>
                             </div>
 
                             {/* Submit Button */}
@@ -332,10 +682,15 @@ export default function CreateTeamPage() {
                                 </Link>
                                 <button
                                     type="submit"
-                                    disabled={loading}
+                                    disabled={loading || uploadingImages}
                                     className="flex-1 px-8 py-4 bg-red-600 text-white text-lg font-bold rounded-2xl hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
-                                    {loading ? (
+                                    {uploadingImages ? (
+                                        <div className="flex items-center justify-center gap-3">
+                                            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                            Đang upload hình ảnh...
+                                        </div>
+                                    ) : loading ? (
                                         <div className="flex items-center justify-center gap-3">
                                             <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                                             Đang tạo bài đăng...

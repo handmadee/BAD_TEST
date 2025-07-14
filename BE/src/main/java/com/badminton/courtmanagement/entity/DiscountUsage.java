@@ -9,6 +9,7 @@ import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "discount_usages")
@@ -39,14 +40,10 @@ public class DiscountUsage extends BaseEntity {
     private Booking booking;
     
     @NotNull
-    @Column(name = "original_amount", nullable = false, precision = 10, scale = 2)
-    private BigDecimal originalAmount;
-    
-    @NotNull
     @Column(name = "discount_amount", nullable = false, precision = 10, scale = 2)
     private BigDecimal discountAmount;
     
-    @NotNull
-    @Column(name = "final_amount", nullable = false, precision = 10, scale = 2)
-    private BigDecimal finalAmount;
+    @Column(name = "used_at")
+    @Builder.Default
+    private LocalDateTime usedAt = LocalDateTime.now();
 } 

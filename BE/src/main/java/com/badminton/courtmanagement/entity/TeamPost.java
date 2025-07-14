@@ -55,15 +55,26 @@ public class TeamPost extends BaseEntity {
     @Column(name = "skill_level", length = 20)
     private String skillLevel;
     
+    @Enumerated(EnumType.STRING)
+    @Column(name = "sport_type", nullable = false, length = 20)
+    private SportType sportType;
+    
     @Builder.Default
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
-    private PostStatus status = PostStatus.OPEN;
+    private PostStatus status = PostStatus.ACTIVE;
+    
+    @Column(name = "images", columnDefinition = "TEXT")
+    private String images; // JSON string of image URLs
     
     @OneToMany(mappedBy = "teamPost", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private Set<TeamMember> members;
     
     public enum PostStatus {
-        OPEN, CLOSED, CANCELLED
+        ACTIVE, FULL, CANCELLED, COMPLETED
+    }
+    
+    public enum SportType {
+        BADMINTON, PICKLEBALL
     }
 } 

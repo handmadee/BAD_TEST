@@ -10,6 +10,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 @Builder
@@ -37,4 +38,9 @@ public class CreateTeamPostRequest {
     private Integer currentPlayers = 1;
     
     private String skillLevel;
+    
+    @NotNull(message = "Môn thể thao không được để trống")
+    private String sportType; // Frontend sẽ gửi String, backend convert sang enum
+    
+    private List<String> images;
 } 

@@ -28,6 +28,27 @@ export {
     checkAvailability,
     calculatePrice,
 } from "./booking-service";
+export {
+    uploadService,
+    uploadImage,
+    uploadMultipleImages,
+    validateImageFile,
+    createPreviewUrl,
+    revokePreviewUrl,
+} from "./upload-service";
+export { geocodingService } from "./geocoding-service";
+export {
+    adminService,
+    getDashboardStats,
+    getAllCourts,
+    createCourt as adminCreateCourt,
+    updateCourt,
+    deleteCourt,
+    createCourtOwner,
+    getCourtOwners,
+    getAllUsers,
+    updateUserStatus,
+} from "./admin-service";
 
 // Types
 export type {
@@ -50,6 +71,12 @@ export type {
     CreateBookingRequest,
     ApiError as ApiErrorType,
 } from "../types/api";
+export type { UploadResponse } from "./upload-service";
+export type {
+    GeocodingResult,
+    ReverseGeocodingResult,
+} from "./geocoding-service";
+export type { CreateCourtOwnerRequest, DashboardStats } from "./admin-service";
 
 // Geocoding utilities
 export * from "./geocoding";

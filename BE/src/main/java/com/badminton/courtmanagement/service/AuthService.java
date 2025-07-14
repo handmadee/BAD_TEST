@@ -1,6 +1,8 @@
 package com.badminton.courtmanagement.service;
 
 import com.badminton.courtmanagement.dto.*;
+import com.badminton.courtmanagement.entity.User;
+import org.springframework.data.domain.Pageable;
 
 public interface AuthService {
     
@@ -38,4 +40,26 @@ public interface AuthService {
      * Lấy thông tin user theo ID
      */
     UserDto getUserById(Long userId);
+    
+    // ================= ADMIN METHODS =================
+    
+    /**
+     * Đăng ký court owner (chỉ admin)
+     */
+    UserDto registerCourtOwner(RegisterRequest request);
+    
+    /**
+     * Lấy danh sách court owners (admin)
+     */
+    PageResponse<UserDto> getCourtOwners(String keyword, Pageable pageable);
+    
+    /**
+     * Lấy danh sách tất cả users (admin)
+     */
+    PageResponse<UserDto> getAllUsers(String keyword, String role, Pageable pageable);
+    
+    /**
+     * Cập nhật trạng thái user (admin)
+     */
+    UserDto updateUserStatus(Long userId, User.UserStatus status);
 } 

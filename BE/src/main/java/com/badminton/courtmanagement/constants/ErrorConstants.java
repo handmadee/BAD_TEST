@@ -8,6 +8,7 @@ public final class ErrorConstants {
     public static final String USER_INACTIVE = "USER_INACTIVE";
     public static final String INVALID_CREDENTIALS = "INVALID_CREDENTIALS";
     public static final String EMAIL_ALREADY_EXISTS = "EMAIL_ALREADY_EXISTS";
+    public static final String USERNAME_ALREADY_EXISTS = "USERNAME_ALREADY_EXISTS";
     public static final String PHONE_ALREADY_EXISTS = "PHONE_ALREADY_EXISTS";
     public static final String PASSWORD_MISMATCH = "PASSWORD_MISMATCH";
     public static final String INVALID_CURRENT_PASSWORD = "INVALID_CURRENT_PASSWORD";

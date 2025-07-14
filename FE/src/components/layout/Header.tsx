@@ -50,6 +50,12 @@ export default function Header() {
             requireAuth: true,
         },
         {
+            href: "/my-teams",
+            label: "Đội của tôi",
+            isActive: pathname === "/my-teams",
+            requireAuth: true,
+        },
+        {
             href: "/my-bookings",
             label: "Quản lý đặt sân",
             isActive: pathname === "/my-bookings",
@@ -90,6 +96,7 @@ export default function Header() {
                                     src="/logos/logo.jpg"
                                     alt="BadmintonApp Logo"
                                     fill
+                                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                                     className="object-cover"
                                 />
                             </div>

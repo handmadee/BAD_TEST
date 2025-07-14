@@ -19,6 +19,8 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 @Service
 @RequiredArgsConstructor
@@ -207,7 +209,7 @@ public class AuthServiceImpl implements AuthService {
         user.setDateOfBirth(request.getDateOfBirth());
         user.setGender(request.getGender());
         // user.setAddress(request.getAddress()); // TODO: Add address field to User entity
-        user.setProfileImage(request.getProfileImage());
+        user.setAvatarUrl(request.getProfileImage());
 
         user = userRepository.save(user);
         log.info("User profile updated successfully: {}", user.getId());
@@ -252,6 +254,92 @@ public class AuthServiceImpl implements AuthService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException(ErrorConstants.USER_NOT_FOUND, userId));
         
+        return userMapper.toDto(user);
+    }
+
+    // ================= ADMIN METHODS =================
+
+    @Override
+    @Transactional
+    public UserDto registerCourtOwner(RegisterRequest request) {
+        log.debug("Registering court owner: {}", request.getEmail());
+        
+        // Validate request
+        if (userRepository.existsByEmail(request.getEmail())) {
+            throw new ValidationException(ErrorConstants.EMAIL_ALREADY_EXISTS);
+        }
+        if (userRepository.existsByUsername(request.getUsername())) {
+            throw new ValidationException(ErrorConstants.USERNAME_ALREADY_EXISTS);
+        }
+
+        // Create court owner user
+        User user = User.builder()
+                .username(request.getUsername())
+                .email(request.getEmail())
+                .fullName(request.getFullName())
+                .password(passwordEncoder.encode(request.getPassword()))
+                .phone(request.getPhone())
+                .role(User.UserRole.COURT_OWNER)
+                .status(User.UserStatus.ACTIVE)
+                .emailVerified(true) // Admin created accounts are auto-verified
+                .build();
+
+        user = userRepository.save(user);
+        log.info("Court owner registered successfully: {}", user.getId());
+
+        return userMapper.toDto(user);
+    }
+
+    @Override
+    public PageResponse<UserDto> getCourtOwners(String keyword, Pageable pageable) {
+        log.debug("Getting court owners with keyword: {}", keyword);
+        
+        Page<User> users;
+        if (keyword != null && !keyword.trim().isEmpty()) {
+            users = userRepository.findByRoleAndKeyword(User.UserRole.COURT_OWNER, keyword.trim(), pageable);
+        } else {
+            users = userRepository.findByRole(User.UserRole.COURT_OWNER, pageable);
+        }
+        
+        return PageResponse.of(users.map(userMapper::toDto));
+    }
+
+    @Override
+    public PageResponse<UserDto> getAllUsers(String keyword, String role, Pageable pageable) {
+        log.debug("Getting all users with keyword: {}, role: {}", keyword, role);
+        
+        Page<User> users;
+        
+        if (role != null && !role.trim().isEmpty()) {
+            User.UserRole userRole = User.UserRole.valueOf(role.toUpperCase());
+            if (keyword != null && !keyword.trim().isEmpty()) {
+                users = userRepository.findByRoleAndKeyword(userRole, keyword.trim(), pageable);
+            } else {
+                users = userRepository.findByRole(userRole, pageable);
+            }
+        } else {
+            if (keyword != null && !keyword.trim().isEmpty()) {
+                users = userRepository.findByKeyword(keyword.trim(), pageable);
+            } else {
+                users = userRepository.findAll(pageable);
+            }
+        }
+        
+        return PageResponse.of(users.map(userMapper::toDto));
+    }
+
+    @Override
+    @Transactional
+    public UserDto updateUserStatus(Long userId, User.UserStatus status) {
+        log.debug("Updating user status: {} to {}", userId, status);
+        
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException(ErrorConstants.USER_NOT_FOUND, userId));
+        
+        user.setStatus(status);
+        user = userRepository.save(user);
+        
+        log.info("User status updated successfully: {} -> {}", userId, status);
         return userMapper.toDto(user);
     }
 } 

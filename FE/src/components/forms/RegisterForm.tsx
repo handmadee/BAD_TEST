@@ -8,6 +8,7 @@ import toast from "react-hot-toast";
 
 export default function RegisterForm() {
     const [formData, setFormData] = useState({
+        username: "",
         fullName: "",
         email: "",
         phone: "",
@@ -53,12 +54,14 @@ export default function RegisterForm() {
         try {
             setIsSubmitting(true);
             await register({
+                username: formData.username,
                 fullName: formData.fullName,
                 email: formData.email,
                 phone: formData.phone,
                 dateOfBirth: formData.dateOfBirth,
                 gender: formData.gender,
                 password: formData.password,
+                confirmPassword: formData.confirmPassword,
             });
 
             toast.success("Đăng ký thành công!");
@@ -80,6 +83,29 @@ export default function RegisterForm() {
                 </h1>
 
                 <form onSubmit={handleSubmit} className="space-y-6">
+                    {/* Username field */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Tên đăng nhập
+                        </label>
+                        <input
+                            type="text"
+                            name="username"
+                            value={formData.username}
+                            onChange={handleChange}
+                            className="w-full h-12 px-4 border border-gray-300 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent bg-gray-50 focus:bg-white transition-all duration-200"
+                            placeholder="Nhập tên đăng nhập (chỉ chữ, số và _)"
+                            pattern="^[a-zA-Z0-9_]+$"
+                            minLength={3}
+                            maxLength={50}
+                            required
+                            disabled={isSubmitting}
+                        />
+                        <p className="text-xs text-gray-500 mt-1">
+                            Từ 3-50 ký tự, chỉ chứa chữ cái, số và dấu gạch dưới
+                        </p>
+                    </div>
+
                     {/* Full Name field */}
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">

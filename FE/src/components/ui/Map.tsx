@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useRef, useMemo } from "react";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
-import { Court } from "@/lib/api";
+import { Court } from "@/types/api";
 import {
     geocodeMultipleAddresses,
     getDaNangFallbackCoords,
@@ -225,7 +225,10 @@ const MarkersWithPopup: React.FC<{
                     <Marker
                         key={court.id}
                         position={[court.lat!, court.lng!]}
-                        icon={getCourtIcon(court.sport_type, isSelected)}
+                        icon={getCourtIcon(
+                            court.sportTypes || "Cầu lông",
+                            isSelected
+                        )}
                         eventHandlers={{
                             click: () => onCourtSelect?.(court),
                         }}
@@ -256,15 +259,19 @@ const MarkersWithPopup: React.FC<{
                                 <div className="flex items-center justify-between text-sm">
                                     <span className="flex items-center gap-1">
                                         <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
-                                        {court.rating.toFixed(1)}
+                                        {(court.averageRating || 0).toFixed(1)}
                                     </span>
                                     <span className="text-red-600 font-semibold">
-                                        {court.price.toLocaleString()}đ/h
+                                        {court.price
+                                            ? `${court.price.toLocaleString()}đ/h`
+                                            : "Liên hệ"}
                                     </span>
                                 </div>
                                 <div className="flex items-center gap-1 mt-1 text-xs text-gray-500">
                                     <MapPin className="w-3 h-3" />
-                                    Cách {court.distance}
+                                    {court.distance
+                                        ? `Cách ${court.distance}km`
+                                        : court.address}
                                 </div>
                             </div>
                         </Popup>
@@ -348,7 +355,7 @@ const Map: React.FC<MapProps> = ({
                             ...court,
                             lat: geocodedResult.lat,
                             lng: geocodedResult.lng,
-                            distanceNum: parseInt(court.distance) || index + 1,
+                            distanceNum: index + 1,
                         };
                     } else {
                         // Fallback to distributed coordinates
@@ -360,7 +367,7 @@ const Map: React.FC<MapProps> = ({
                             ...court,
                             lat: fallback.lat,
                             lng: fallback.lng,
-                            distanceNum: parseInt(court.distance) || index + 1,
+                            distanceNum: index + 1,
                         };
                     }
                 });
@@ -376,7 +383,7 @@ const Map: React.FC<MapProps> = ({
                         ...court,
                         lat: fallback.lat,
                         lng: fallback.lng,
-                        distanceNum: parseInt(court.distance) || index + 1,
+                        distanceNum: index + 1,
                     };
                 });
                 setCourtsWithCoords(fallbackCourts);

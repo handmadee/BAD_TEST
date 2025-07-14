@@ -25,6 +25,8 @@ public class TeamPostDto {
     private Integer currentPlayers;
     private String skillLevel;
     private TeamPost.PostStatus status;
+    private TeamPost.SportType sportType;
+    private List<String> images;
     private List<TeamMemberDto> members;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

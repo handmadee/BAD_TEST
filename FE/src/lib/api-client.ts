@@ -61,9 +61,14 @@ class ApiClient {
         const url = `${API_BASE_URL}${endpoint}`;
 
         const headers: Record<string, string> = {
-            "Content-Type": "application/json",
             ...((options.headers as Record<string, string>) || {}),
         };
+
+        // Only set Content-Type if body is not FormData
+        // FormData needs browser to auto-set boundary
+        if (!(options.body instanceof FormData)) {
+            headers["Content-Type"] = "application/json";
+        }
 
         // Thêm Authorization header nếu có token
         if (this.token) {
@@ -173,10 +178,23 @@ class ApiClient {
         return this.request<T>(url, { method: "GET" });
     }
 
-    async post<T>(endpoint: string, data?: any): Promise<ApiResponse<T>> {
+    async post<T>(
+        endpoint: string,
+        data?: any,
+        options?: RequestInit
+    ): Promise<ApiResponse<T>> {
+        // Handle FormData differently - don't JSON.stringify it
+        const body =
+            data instanceof FormData
+                ? data
+                : data
+                ? JSON.stringify(data)
+                : undefined;
+
         return this.request<T>(endpoint, {
             method: "POST",
-            body: data ? JSON.stringify(data) : undefined,
+            body,
+            ...options,
         });
     }
 

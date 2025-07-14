@@ -12,6 +12,9 @@ import com.badminton.courtmanagement.mapper.TeamPostMapper;
 import com.badminton.courtmanagement.repository.TeamMemberRepository;
 import com.badminton.courtmanagement.repository.TeamPostRepository;
 import com.badminton.courtmanagement.repository.UserRepository;
+import com.badminton.courtmanagement.repository.MessageRepository;
+import com.badminton.courtmanagement.entity.Message;
+import com.badminton.courtmanagement.mapper.MessageMapper;
 import com.badminton.courtmanagement.service.TeamPostService;
 import com.badminton.courtmanagement.utils.SecurityUtils;
 import lombok.RequiredArgsConstructor;
@@ -36,8 +39,10 @@ public class TeamPostServiceImpl implements TeamPostService {
     private final TeamPostRepository teamPostRepository;
     private final TeamMemberRepository teamMemberRepository;
     private final UserRepository userRepository;
+    private final MessageRepository messageRepository;
     private final TeamPostMapper teamPostMapper;
     private final TeamMemberMapper teamMemberMapper;
+    private final MessageMapper messageMapper;
     
     @Override
     @Transactional
@@ -52,7 +57,12 @@ public class TeamPostServiceImpl implements TeamPostService {
         // Create team post entity
         TeamPost teamPost = teamPostMapper.toEntity(request);
         teamPost.setUser(currentUser);
-        teamPost.setStatus(TeamPost.PostStatus.OPEN);
+        teamPost.setStatus(TeamPost.PostStatus.ACTIVE);
+        
+        // Convert sportType string to enum
+        if (request.getSportType() != null) {
+            teamPost.setSportType(TeamPost.SportType.valueOf(request.getSportType().toUpperCase()));
+        }
         
         // Save team post
         TeamPost savedTeamPost = teamPostRepository.save(teamPost);
@@ -127,7 +137,7 @@ public class TeamPostServiceImpl implements TeamPostService {
         log.debug("Getting all team posts");
         
         Page<TeamPost> teamPosts = teamPostRepository.findByStatusOrderByCreatedAtDesc(
-                TeamPost.PostStatus.OPEN, pageable);
+                TeamPost.PostStatus.ACTIVE, pageable);
         
         return PageResponse.of(teamPosts.map(teamPostMapper::toDto));
     }
@@ -140,6 +150,34 @@ public class TeamPostServiceImpl implements TeamPostService {
         Page<TeamPost> teamPosts = teamPostRepository.findByUserOrderByCreatedAtDesc(currentUser, pageable);
         
         return PageResponse.of(teamPosts.map(teamPostMapper::toDto));
+    }
+
+    @Override
+    public PageResponse<TeamPostDto> getJoinedTeams(Pageable pageable) {
+        log.debug("Getting joined teams");
+        
+        User currentUser = getCurrentUser();
+        
+        // Tìm các team mà user đã tham gia với status ACCEPTED
+        List<TeamMember> acceptedMemberships = teamMemberRepository.findByUserAndStatus(
+                currentUser, TeamMember.MemberStatus.ACCEPTED);
+        
+        // Lấy danh sách team posts từ các membership
+        List<TeamPost> joinedTeamPosts = acceptedMemberships.stream()
+                .map(TeamMember::getTeamPost)
+                .distinct()
+                .sorted((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()))
+                .toList();
+        
+        // Convert to page manually since we already have the filtered list
+        int start = Math.min((int) pageable.getOffset(), joinedTeamPosts.size());
+        int end = Math.min(start + pageable.getPageSize(), joinedTeamPosts.size());
+        List<TeamPost> paginatedList = joinedTeamPosts.subList(start, end);
+        
+        Page<TeamPost> teamPostPage = new org.springframework.data.domain.PageImpl<>(
+                paginatedList, pageable, joinedTeamPosts.size());
+        
+        return PageResponse.of(teamPostPage.map(teamPostMapper::toDto));
     }
     
     @Override
@@ -310,13 +348,13 @@ public class TeamPostServiceImpl implements TeamPostService {
     @Override
     @Transactional
     public TeamPostDto closeTeamPost(Long id) {
-        return updateTeamPostStatus(id, TeamPost.PostStatus.CLOSED);
+        return updateTeamPostStatus(id, TeamPost.PostStatus.FULL);
     }
     
     @Override
     @Transactional
     public TeamPostDto reopenTeamPost(Long id) {
-        return updateTeamPostStatus(id, TeamPost.PostStatus.OPEN);
+        return updateTeamPostStatus(id, TeamPost.PostStatus.ACTIVE);
     }
     
     @Override
@@ -327,10 +365,10 @@ public class TeamPostServiceImpl implements TeamPostService {
                 .orElseThrow(() -> new ResourceNotFoundException(ErrorConstants.USER_NOT_FOUND));
         
         Map<String, Object> stats = new HashMap<>();
-        stats.put("userId", userId);
         stats.put("totalPosts", teamPostRepository.countByUser(user));
-        stats.put("openPosts", teamPostRepository.countByUserAndStatus(user, TeamPost.PostStatus.OPEN));
-        stats.put("closedPosts", teamPostRepository.countByUserAndStatus(user, TeamPost.PostStatus.CLOSED));
+        stats.put("activePosts", teamPostRepository.countByUserAndStatus(user, TeamPost.PostStatus.ACTIVE));
+        stats.put("fullPosts", teamPostRepository.countByUserAndStatus(user, TeamPost.PostStatus.FULL));
+        stats.put("cancelledPosts", teamPostRepository.countByUserAndStatus(user, TeamPost.PostStatus.CANCELLED));
         
         return stats;
     }
@@ -342,23 +380,29 @@ public class TeamPostServiceImpl implements TeamPostService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException(ErrorConstants.USER_NOT_FOUND));
         
-        List<TeamPost> teamPosts = teamPostRepository.findUpcomingTeamPostsByUser(user, LocalDateTime.now());
-        return teamPostMapper.toDtoList(teamPosts);
+        LocalDateTime now = LocalDateTime.now();
+        List<TeamPost> teamPosts = teamPostRepository.findUpcomingTeamPostsByUser(user, now);
+        
+        return teamPosts.stream().map(teamPostMapper::toDto).toList();
     }
     
     @Override
     public List<TeamPostDto> getPopularTeamPosts(int limit) {
-        log.debug("Getting popular team posts with limit: {}", limit);
+        log.debug("Getting popular team posts");
         
+        // Find team posts with most members (simplified)
         List<TeamPost> teamPosts = teamPostRepository.findPopularTeamPosts(
-                TeamPost.PostStatus.OPEN, Pageable.ofSize(limit));
+                TeamPost.PostStatus.ACTIVE, Pageable.ofSize(limit));
         
-        return teamPostMapper.toDtoList(teamPosts);
+        return teamPosts.stream().map(teamPostMapper::toDto).toList();
     }
     
     @Override
     public boolean isTeamPostFull(Long teamPostId) {
-        return teamPostRepository.isTeamPostFull(teamPostId);
+        TeamPost teamPost = teamPostRepository.findById(teamPostId)
+                .orElseThrow(() -> new ResourceNotFoundException(ErrorConstants.TEAM_POST_NOT_FOUND));
+        
+        return teamPost.getCurrentPlayers() >= teamPost.getMaxPlayers();
     }
     
     @Override
@@ -372,13 +416,51 @@ public class TeamPostServiceImpl implements TeamPostService {
                 .orElseThrow(() -> new ResourceNotFoundException(ErrorConstants.TEAM_POST_NOT_FOUND));
         
         // Check if team is open and not full
-        if (teamPost.getStatus() != TeamPost.PostStatus.OPEN || 
+        if (teamPost.getStatus() != TeamPost.PostStatus.ACTIVE || 
             teamPost.getCurrentPlayers() >= teamPost.getMaxPlayers()) {
             return false;
         }
         
         // Check if user is not already in team
         return !isUserInTeam(teamPostId, userId);
+    }
+    
+    @Override
+    @Transactional
+    public TeamMemberDto sendMessageAndJoinRequest(Long teamPostId, String messageContent) {
+        log.debug("Sending message and join request for team post: {}", teamPostId);
+        
+        TeamPost teamPost = teamPostRepository.findById(teamPostId)
+                .orElseThrow(() -> new ResourceNotFoundException(ErrorConstants.TEAM_POST_NOT_FOUND));
+        
+        User currentUser = getCurrentUser();
+        
+        // Validate join request first
+        validateJoinRequest(teamPost, currentUser);
+        
+        // Create and save message
+        Message message = Message.builder()
+                .sender(currentUser)
+                .receiver(teamPost.getUser())
+                .content(messageContent)
+                .messageType(Message.MessageType.TEXT)
+                .relatedPost(teamPost)
+                .isRead(false)
+                .build();
+        
+        messageRepository.save(message);
+        
+        // Create team member with PENDING status
+        TeamMember teamMember = TeamMember.builder()
+                .teamPost(teamPost)
+                .user(currentUser)
+                .status(TeamMember.MemberStatus.PENDING)
+                .build();
+        
+        TeamMember savedMember = teamMemberRepository.save(teamMember);
+        
+        log.info("User {} sent message and join request for team post {}", currentUser.getId(), teamPostId);
+        return teamMemberMapper.toDto(savedMember);
     }
     
     // Private helper methods
@@ -407,7 +489,7 @@ public class TeamPostServiceImpl implements TeamPostService {
     
     private void validateJoinRequest(TeamPost teamPost, User user) {
         // Check if team is open
-        if (teamPost.getStatus() != TeamPost.PostStatus.OPEN) {
+        if (teamPost.getStatus() != TeamPost.PostStatus.ACTIVE) {
             throw new ValidationException(ErrorConstants.TEAM_POST_CLOSED);
         }
         
@@ -432,8 +514,8 @@ public class TeamPostServiceImpl implements TeamPostService {
         return (root, query, criteriaBuilder) -> {
             var predicates = new java.util.ArrayList<jakarta.persistence.criteria.Predicate>();
             
-            // Only show open posts
-            predicates.add(criteriaBuilder.equal(root.get("status"), TeamPost.PostStatus.OPEN));
+            // Only show active posts
+            predicates.add(criteriaBuilder.equal(root.get("status"), TeamPost.PostStatus.ACTIVE));
             
             // Keyword search in title and description
             if (keyword != null && !keyword.trim().isEmpty()) {

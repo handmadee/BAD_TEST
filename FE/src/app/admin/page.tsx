@@ -1,794 +1,1054 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import Link from "next/link";
-import { courtService } from "@/lib";
-import type { Court, CreateCourtRequest } from "@/types/api";
-import { CourtCard } from "@/components/ui/CourtCard";
+import {
+    adminService,
+    type CreateCourtOwnerRequest,
+    type DashboardStats,
+} from "@/lib/admin-service";
+import type { Court, CreateCourtRequest, User } from "@/types/api";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import { geocodingService } from "@/lib/geocoding-service";
 
 export default function AdminPage() {
-    const [activeTab, setActiveTab] = useState<"manage" | "create">("manage");
+    const [activeTab, setActiveTab] = useState<
+        "dashboard" | "courts" | "owners" | "users"
+    >("dashboard");
     const [courts, setCourts] = useState<Court[]>([]);
+    const [courtOwners, setCourtOwners] = useState<User[]>([]);
+    const [users, setUsers] = useState<User[]>([]);
+    const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(
+        null
+    );
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
-    const [creating, setCreating] = useState(false);
 
-    // Form states cho tạo sân mới
-    const [formData, setFormData] = useState({
+    // Form states
+    const [showCreateCourtForm, setShowCreateCourtForm] = useState(false);
+    const [showCreateOwnerForm, setShowCreateOwnerForm] = useState(false);
+    const [isGeocodingLoading, setIsGeocodingLoading] = useState(false);
+
+    // Separate address fields
+    const [addressForm, setAddressForm] = useState({
+        street: "", // Số nhà, đường
+        district: "", // Quận/huyện
+        city: "", // Tỉnh/thành phố
+    });
+
+    const [createCourtForm, setCreateCourtForm] = useState<CreateCourtRequest>({
         name: "",
         address: "",
         description: "",
         phone: "",
         email: "",
         operatingHours: "",
-        sportTypes: "Cầu lông",
+        sportTypes: "",
         amenities: "",
-        images: [] as string[],
-        latitude: 0,
-        longitude: 0,
+        images: [],
+        latitude: 10.762622, // Default to Ho Chi Minh City
+        longitude: 106.660172,
     });
+    const [createOwnerForm, setCreateOwnerForm] =
+        useState<CreateCourtOwnerRequest>({
+            username: "",
+            fullName: "",
+            email: "",
+            phone: "",
+            password: "",
+            address: "",
+            description: "",
+        });
 
-    const [newAmenity, setNewAmenity] = useState("");
-    const [formMessage, setFormMessage] = useState<{
-        type: "success" | "error";
-        text: string;
-    } | null>(null);
+    // Geocoding function using backend API
+    const geocodeAddress = async (fullAddress: string) => {
+        try {
+            setIsGeocodingLoading(true);
+
+            const result = await geocodingService.geocodeAddress(fullAddress);
+
+            setCreateCourtForm((prev) => ({
+                ...prev,
+                latitude: result.latitude,
+                longitude: result.longitude,
+            }));
+
+            return result;
+        } catch (error) {
+            console.error("Geocoding error:", error);
+            throw error; // Throw error to handle in submit function
+        } finally {
+            setIsGeocodingLoading(false);
+        }
+    };
+
+    // Update full address when address parts change (no auto-geocoding)
+    useEffect(() => {
+        const { street, district, city } = addressForm;
+        const addressParts = [street, district, city].filter((part) =>
+            part.trim()
+        );
+        const fullAddress = addressParts.join(", ");
+
+        setCreateCourtForm((prev) => ({
+            ...prev,
+            address: fullAddress,
+        }));
+    }, [addressForm]);
 
     useEffect(() => {
-        loadCourts();
+        loadDashboardData();
     }, []);
 
-    const loadCourts = async () => {
+    useEffect(() => {
+        if (activeTab === "courts") {
+            loadCourts();
+        } else if (activeTab === "owners") {
+            loadCourtOwners();
+        } else if (activeTab === "users") {
+            loadUsers();
+        }
+    }, [activeTab]);
+
+    const loadDashboardData = async () => {
         try {
             setLoading(true);
-            const response = await courtService.getCourts();
-            const courtsData = response.data;
-            setCourts(courtsData.content || []);
+            const response = await adminService.getDashboardStats();
+            setDashboardStats(response.data);
         } catch (error) {
-            console.error("Lỗi khi tải danh sách sân:", error);
+            console.error("Failed to load dashboard stats:", error);
         } finally {
             setLoading(false);
         }
     };
 
-    const filteredCourts = courts.filter(
-        (court) =>
-            court.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            court.address.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-
-    const handleInputChange = (field: string, value: any) => {
-        setFormData((prev) => ({
-            ...prev,
-            [field]: value,
-        }));
-    };
-
-    const addAmenity = () => {
-        if (newAmenity.trim()) {
-            const currentAmenities = formData.amenities
-                ? formData.amenities.split(",").map((s) => s.trim())
-                : [];
-
-            if (!currentAmenities.includes(newAmenity.trim())) {
-                const updatedAmenities = [
-                    ...currentAmenities,
-                    newAmenity.trim(),
-                ];
-                setFormData((prev) => ({
-                    ...prev,
-                    amenities: updatedAmenities.join(", "),
-                }));
-                setNewAmenity("");
-            }
+    const loadCourts = async () => {
+        try {
+            setLoading(true);
+            const response = await adminService.getAllCourts();
+            setCourts(response.data.content || []);
+        } catch (error) {
+            console.error("Failed to load courts:", error);
+        } finally {
+            setLoading(false);
         }
     };
 
-    const removeAmenity = (amenity: string) => {
-        const currentAmenities = formData.amenities
-            ? formData.amenities.split(",").map((s) => s.trim())
-            : [];
-
-        const updatedAmenities = currentAmenities.filter((a) => a !== amenity);
-        setFormData((prev) => ({
-            ...prev,
-            amenities: updatedAmenities.join(", "),
-        }));
+    const loadCourtOwners = async () => {
+        try {
+            setLoading(true);
+            const response = await adminService.getCourtOwners();
+            setCourtOwners(response.data.content || []);
+        } catch (error) {
+            console.error("Failed to load court owners:", error);
+        } finally {
+            setLoading(false);
+        }
     };
 
-    const getAmenitiesArray = () => {
-        return formData.amenities
-            ? formData.amenities
-                  .split(",")
-                  .map((s) => s.trim())
-                  .filter((s) => s.length > 0)
-            : [];
+    const loadUsers = async () => {
+        try {
+            setLoading(true);
+            const response = await adminService.getAllUsers();
+            setUsers(response.data.content || []);
+        } catch (error) {
+            console.error("Failed to load users:", error);
+        } finally {
+            setLoading(false);
+        }
     };
 
-    const handleSubmit = async (e: React.FormEvent) => {
+    const handleCreateCourt = async (e: React.FormEvent) => {
         e.preventDefault();
-        setFormMessage(null);
 
-        // Validation cơ bản
-        if (!formData.name || !formData.address) {
-            setFormMessage({
-                type: "error",
-                text: "Vui lòng điền đầy đủ thông tin bắt buộc (Tên sân và Địa chỉ)!",
-            });
+        // Validate required fields
+        if (!createCourtForm.name || !createCourtForm.address) {
+            alert("Vui lòng nhập tên sân và địa chỉ đầy đủ");
             return;
         }
 
-        setCreating(true);
+        // Validate address components
+        const { street, district, city } = addressForm;
+        if (!street || !district || !city) {
+            alert(
+                "Vui lòng nhập đầy đủ: Tên đường, Quận/huyện, Tỉnh/thành phố"
+            );
+            return;
+        }
 
         try {
-            // Tạo object court mới theo đúng interface CreateCourtRequest
-            const newCourtData: CreateCourtRequest = {
-                name: formData.name,
-                address: formData.address,
-                description: formData.description || undefined,
-                phone: formData.phone || undefined,
-                email: formData.email || undefined,
-                operatingHours: formData.operatingHours || undefined,
-                sportTypes: formData.sportTypes,
-                amenities: formData.amenities || undefined,
-                images:
-                    formData.images.length > 0 ? formData.images : undefined,
-                latitude: formData.latitude || undefined,
-                longitude: formData.longitude || undefined,
-            };
+            setLoading(true);
 
-            // Gọi API tạo sân mới
-            const response = await courtService.createCourt(newCourtData);
+            // Perform geocoding on submit
+            try {
+                await geocodeAddress(createCourtForm.address);
+            } catch (geocodingError: any) {
+                alert(
+                    `Không thể tìm tọa độ: ${
+                        geocodingError.message || "Lỗi không xác định"
+                    }. Vui lòng kiểm tra lại địa chỉ.`
+                );
+                setLoading(false);
+                return;
+            }
 
-            setFormMessage({
-                type: "success",
-                text: "Tạo sân thành công!",
-            });
+            // Validate coordinates after geocoding
+            if (
+                !createCourtForm.latitude ||
+                !createCourtForm.longitude ||
+                (createCourtForm.latitude === 10.762622 &&
+                    createCourtForm.longitude === 106.660172)
+            ) {
+                alert(
+                    "Không thể xác định tọa độ. Vui lòng kiểm tra lại địa chỉ."
+                );
+                return;
+            }
 
+            const response = await adminService.createCourt(createCourtForm);
+            alert("Tạo sân mới thành công!");
+            setShowCreateCourtForm(false);
             // Reset form
-            setFormData({
+            setAddressForm({
+                street: "",
+                district: "",
+                city: "",
+            });
+            setCreateCourtForm({
                 name: "",
                 address: "",
                 description: "",
                 phone: "",
                 email: "",
                 operatingHours: "",
-                sportTypes: "Cầu lông",
+                sportTypes: "",
                 amenities: "",
                 images: [],
-                latitude: 0,
-                longitude: 0,
+                latitude: 10.762622,
+                longitude: 106.660172,
             });
-
-            // Reload danh sách sân
-            await loadCourts();
-
-            // Chuyển về tab quản lý sau 2 giây
-            setTimeout(() => {
-                setActiveTab("manage");
-                setFormMessage(null);
-            }, 2000);
+            // Reload courts list
+            loadCourts();
         } catch (error: any) {
-            console.error("Lỗi khi tạo sân:", error);
-
-            const errorMessage =
-                error?.response?.data?.message ||
-                error?.message ||
-                "Có lỗi xảy ra khi tạo sân!";
-
-            setFormMessage({
-                type: "error",
-                text: errorMessage,
-            });
+            console.error("Failed to create court:", error);
+            alert(
+                error.response?.data?.message || "Có lỗi xảy ra khi tạo sân mới"
+            );
         } finally {
-            setCreating(false);
+            setLoading(false);
         }
     };
 
-    const getActiveCourts = () =>
-        courts.filter((court) => court.status === "ACTIVE");
-    const getAverageRating = () => {
-        if (courts.length === 0) return 0;
-        const validRatings = courts.filter(
-            (c) => c.averageRating && c.averageRating > 0
-        );
-        if (validRatings.length === 0) return 0;
+    const handleCreateOwner = async (e: React.FormEvent) => {
+        e.preventDefault();
+        try {
+            setLoading(true);
+            const response = await adminService.createCourtOwner(
+                createOwnerForm
+            );
+            alert("Tạo chủ sân mới thành công!");
+            setShowCreateOwnerForm(false);
+            // Reset form
+            setCreateOwnerForm({
+                username: "",
+                fullName: "",
+                email: "",
+                phone: "",
+                password: "",
+                address: "",
+                description: "",
+            });
+            // Reload owners list
+            loadCourtOwners();
+        } catch (error: any) {
+            console.error("Failed to create court owner:", error);
+            alert(
+                error.response?.data?.message ||
+                    "Có lỗi xảy ra khi tạo chủ sân mới"
+            );
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const renderDashboard = () => (
+        <div className="space-y-6">
+            <h2 className="text-2xl font-bold text-gray-900">Dashboard</h2>
+
+            {loading ? (
+                <div className="flex justify-center py-12">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div>
+                </div>
+            ) : dashboardStats ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div className="bg-white p-6 rounded-lg shadow-sm border">
+                        <h3 className="text-lg font-semibold text-gray-900">
+                            Tổng số sân
+                        </h3>
+                        <p className="text-3xl font-bold text-blue-600">
+                            {dashboardStats.totalCourts}
+                        </p>
+                        <p className="text-sm text-gray-600">
+                            Hoạt động: {dashboardStats.activeCourts}
+                        </p>
+                    </div>
+
+                    <div className="bg-white p-6 rounded-lg shadow-sm border">
+                        <h3 className="text-lg font-semibold text-gray-900">
+                            Người dùng
+                        </h3>
+                        <p className="text-3xl font-bold text-green-600">
+                            {dashboardStats.totalUsers}
+                        </p>
+                    </div>
+
+                    <div className="bg-white p-6 rounded-lg shadow-sm border">
+                        <h3 className="text-lg font-semibold text-gray-900">
+                            Đặt sân
+                        </h3>
+                        <p className="text-3xl font-bold text-purple-600">
+                            {dashboardStats.totalBookings}
+                        </p>
+                    </div>
+
+                    <div className="bg-white p-6 rounded-lg shadow-sm border">
+                        <h3 className="text-lg font-semibold text-gray-900">
+                            Doanh thu tháng
+                        </h3>
+                        <p className="text-3xl font-bold text-yellow-600">
+                            {dashboardStats.monthlyRevenue.toLocaleString()}đ
+                        </p>
+                    </div>
+
+                    <div className="bg-white p-6 rounded-lg shadow-sm border col-span-2">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                            Môn thể thao phổ biến
+                        </h3>
+                        <div className="space-y-2">
+                            {dashboardStats.popularSports.map(
+                                (sport, index) => (
+                                    <div
+                                        key={index}
+                                        className="flex justify-between"
+                                    >
+                                        <span className="text-gray-700">
+                                            {sport.name}
+                                        </span>
+                                        <span className="font-semibold">
+                                            {sport.count} sân
+                                        </span>
+                                    </div>
+                                )
+                            )}
+                        </div>
+                    </div>
+                </div>
+            ) : (
+                <p className="text-center text-gray-600">
+                    Không thể tải dữ liệu dashboard
+                </p>
+            )}
+        </div>
+    );
+
+    const renderCourts = () => (
+        <div className="space-y-6">
+            <div className="flex justify-between items-center">
+                <h2 className="text-2xl font-bold text-gray-900">
+                    Quản lý sân
+                </h2>
+                <Button
+                    onClick={() => setShowCreateCourtForm(true)}
+                    className="bg-blue-600 hover:bg-blue-700"
+                >
+                    Tạo sân mới
+                </Button>
+            </div>
+
+            {loading ? (
+                <div className="flex justify-center py-12">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div>
+                </div>
+            ) : (
+                <div className="bg-white rounded-lg shadow-sm border">
+                    <div className="p-6">
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full divide-y divide-gray-200">
+                                <thead className="bg-gray-50">
+                                    <tr>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Tên sân
+                                        </th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Địa chỉ
+                                        </th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Loại thể thao
+                                        </th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Trạng thái
+                                        </th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Hành động
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody className="bg-white divide-y divide-gray-200">
+                                    {courts.map((court) => (
+                                        <tr key={court.id}>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                                {court.name}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                {court.address}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                {court.sportTypes}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <span
+                                                    className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                                        court.status ===
+                                                        "ACTIVE"
+                                                            ? "bg-green-100 text-green-800"
+                                                            : "bg-red-100 text-red-800"
+                                                    }`}
+                                                >
+                                                    {court.status}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                <button className="text-blue-600 hover:text-blue-900 mr-4">
+                                                    Sửa
+                                                </button>
+                                                <button className="text-red-600 hover:text-red-900">
+                                                    Xóa
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+
+    const renderOwners = () => (
+        <div className="space-y-6">
+            <div className="flex justify-between items-center">
+                <h2 className="text-2xl font-bold text-gray-900">
+                    Quản lý chủ sân
+                </h2>
+                <Button
+                    onClick={() => setShowCreateOwnerForm(true)}
+                    className="bg-blue-600 hover:bg-blue-700"
+                >
+                    Tạo chủ sân mới
+                </Button>
+            </div>
+
+            {loading ? (
+                <div className="flex justify-center py-12">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div>
+                </div>
+            ) : (
+                <div className="bg-white rounded-lg shadow-sm border">
+                    <div className="p-6">
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full divide-y divide-gray-200">
+                                <thead className="bg-gray-50">
+                                    <tr>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Tên
+                                        </th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Email
+                                        </th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Điện thoại
+                                        </th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Trạng thái
+                                        </th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Hành động
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody className="bg-white divide-y divide-gray-200">
+                                    {courtOwners.map((owner) => (
+                                        <tr key={owner.id}>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                                {owner.fullName}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                {owner.email}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                {owner.phone}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <span
+                                                    className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                                        owner.status ===
+                                                        "ACTIVE"
+                                                            ? "bg-green-100 text-green-800"
+                                                            : "bg-red-100 text-red-800"
+                                                    }`}
+                                                >
+                                                    {owner.status}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                <button className="text-blue-600 hover:text-blue-900">
+                                                    Cập nhật trạng thái
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+
+    const renderUsers = () => (
+        <div className="space-y-6">
+            <h2 className="text-2xl font-bold text-gray-900">
+                Quản lý người dùng
+            </h2>
+
+            {loading ? (
+                <div className="flex justify-center py-12">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div>
+                </div>
+            ) : (
+                <div className="bg-white rounded-lg shadow-sm border">
+                    <div className="p-6">
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full divide-y divide-gray-200">
+                                <thead className="bg-gray-50">
+                                    <tr>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Tên
+                                        </th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Email
+                                        </th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Vai trò
+                                        </th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Trạng thái
+                                        </th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Hành động
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody className="bg-white divide-y divide-gray-200">
+                                    {users.map((user) => (
+                                        <tr key={user.id}>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                                {user.fullName}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                {user.email}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                {user.role}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <span
+                                                    className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                                        user.status === "ACTIVE"
+                                                            ? "bg-green-100 text-green-800"
+                                                            : "bg-red-100 text-red-800"
+                                                    }`}
+                                                >
+                                                    {user.status}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                <button className="text-blue-600 hover:text-blue-900">
+                                                    Cập nhật trạng thái
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+
+    const renderCreateCourtModal = () => {
+        if (!showCreateCourtForm) return null;
+
         return (
-            validRatings.reduce((sum, c) => sum + (c.averageRating || 0), 0) /
-            validRatings.length
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-screen overflow-y-auto">
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-lg font-bold">Tạo sân mới</h3>
+                        <button
+                            onClick={() => setShowCreateCourtForm(false)}
+                            className="text-gray-500 hover:text-gray-700"
+                        >
+                            ✕
+                        </button>
+                    </div>
+
+                    <form onSubmit={handleCreateCourt} className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Tên sân *
+                            </label>
+                            <Input
+                                type="text"
+                                value={createCourtForm.name}
+                                onChange={(e) =>
+                                    setCreateCourtForm({
+                                        ...createCourtForm,
+                                        name: e.target.value,
+                                    })
+                                }
+                                required
+                                placeholder="Nhập tên sân"
+                            />
+                        </div>
+
+                        {/* Address Fields */}
+                        <div className="space-y-3">
+                            <label className="block text-sm font-medium text-gray-700">
+                                Địa chỉ *
+                            </label>
+                            <div className="text-xs text-blue-600 bg-blue-50 p-2 rounded">
+                                💡 Chỉ cần nhập tên đường (không số nhà),
+                                quận/huyện và thành phố để geocoding chính xác
+                                nhất
+                            </div>
+
+                            <div>
+                                <Input
+                                    type="text"
+                                    value={addressForm.street}
+                                    onChange={(e) =>
+                                        setAddressForm({
+                                            ...addressForm,
+                                            street: e.target.value,
+                                        })
+                                    }
+                                    placeholder="Tên đường (VD: Nguyễn Văn Linh, Lê Duẩn)"
+                                    required
+                                />
+                            </div>
+
+                            <div>
+                                <Input
+                                    type="text"
+                                    value={addressForm.district}
+                                    onChange={(e) =>
+                                        setAddressForm({
+                                            ...addressForm,
+                                            district: e.target.value,
+                                        })
+                                    }
+                                    placeholder="Quận/Huyện (VD: Thanh Khê, Quận 1)"
+                                    required
+                                />
+                            </div>
+
+                            <div>
+                                <Input
+                                    type="text"
+                                    value={addressForm.city}
+                                    onChange={(e) =>
+                                        setAddressForm({
+                                            ...addressForm,
+                                            city: e.target.value,
+                                        })
+                                    }
+                                    placeholder="Tỉnh/Thành phố (VD: Đà Nẵng, Hồ Chí Minh)"
+                                    required
+                                />
+                            </div>
+
+                            {/* Display full address */}
+                            {createCourtForm.address && (
+                                <div className="p-3 bg-gray-50 rounded-md">
+                                    <p className="text-sm text-gray-600">
+                                        Địa chỉ đầy đủ:
+                                    </p>
+                                    <p className="text-sm font-medium">
+                                        {createCourtForm.address}
+                                    </p>
+                                </div>
+                            )}
+
+                            {/* Display coordinates or geocoding status */}
+                            {isGeocodingLoading ? (
+                                <div className="p-3 bg-blue-50 rounded-md">
+                                    <p className="text-sm text-blue-600">
+                                        🔄 Đang tìm tọa độ...
+                                    </p>
+                                </div>
+                            ) : createCourtForm.latitude !== 10.762622 ||
+                              createCourtForm.longitude !== 106.660172 ? (
+                                <div className="p-3 bg-green-50 rounded-md">
+                                    <p className="text-sm text-green-600">
+                                        ✓ Tọa độ:{" "}
+                                        {createCourtForm.latitude?.toFixed(6)},{" "}
+                                        {createCourtForm.longitude?.toFixed(6)}
+                                    </p>
+                                </div>
+                            ) : createCourtForm.address ? (
+                                <div className="p-3 bg-yellow-50 rounded-md">
+                                    <p className="text-sm text-yellow-600">
+                                        ⏳ Tọa độ sẽ được tự động tính toán khi
+                                        bấm "Tạo sân"
+                                    </p>
+                                </div>
+                            ) : null}
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Mô tả
+                            </label>
+                            <textarea
+                                value={createCourtForm.description}
+                                onChange={(e) =>
+                                    setCreateCourtForm({
+                                        ...createCourtForm,
+                                        description: e.target.value,
+                                    })
+                                }
+                                placeholder="Nhập mô tả sân"
+                                rows={3}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
+                            />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Số điện thoại
+                                </label>
+                                <Input
+                                    type="tel"
+                                    value={createCourtForm.phone}
+                                    onChange={(e) =>
+                                        setCreateCourtForm({
+                                            ...createCourtForm,
+                                            phone: e.target.value,
+                                        })
+                                    }
+                                    placeholder="0123456789"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Email
+                                </label>
+                                <Input
+                                    type="email"
+                                    value={createCourtForm.email}
+                                    onChange={(e) =>
+                                        setCreateCourtForm({
+                                            ...createCourtForm,
+                                            email: e.target.value,
+                                        })
+                                    }
+                                    placeholder="contact@court.com"
+                                />
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Giờ hoạt động
+                            </label>
+                            <Input
+                                type="text"
+                                value={createCourtForm.operatingHours}
+                                onChange={(e) =>
+                                    setCreateCourtForm({
+                                        ...createCourtForm,
+                                        operatingHours: e.target.value,
+                                    })
+                                }
+                                placeholder="06:00 - 23:00"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Loại thể thao
+                            </label>
+                            <Input
+                                type="text"
+                                value={createCourtForm.sportTypes}
+                                onChange={(e) =>
+                                    setCreateCourtForm({
+                                        ...createCourtForm,
+                                        sportTypes: e.target.value,
+                                    })
+                                }
+                                placeholder="Cầu lông, Pickleball"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Tiện ích
+                            </label>
+                            <Input
+                                type="text"
+                                value={createCourtForm.amenities}
+                                onChange={(e) =>
+                                    setCreateCourtForm({
+                                        ...createCourtForm,
+                                        amenities: e.target.value,
+                                    })
+                                }
+                                placeholder="Điều hòa, Wifi, Thay đồ, Nước uống"
+                            />
+                        </div>
+
+                        <div className="flex justify-end space-x-3 pt-4">
+                            <Button
+                                type="button"
+                                onClick={() => setShowCreateCourtForm(false)}
+                                className="bg-gray-300 text-gray-700 hover:bg-gray-400"
+                            >
+                                Hủy
+                            </Button>
+                            <Button
+                                type="submit"
+                                disabled={loading || isGeocodingLoading}
+                                className="bg-blue-600 hover:bg-blue-700"
+                            >
+                                {loading
+                                    ? "Đang tạo..."
+                                    : isGeocodingLoading
+                                    ? "Đang tìm tọa độ..."
+                                    : "Tạo sân"}
+                            </Button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        );
+    };
+
+    const renderCreateOwnerModal = () => {
+        if (!showCreateOwnerForm) return null;
+
+        return (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                <div className="bg-white rounded-lg p-6 w-full max-w-md">
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-lg font-bold">Tạo chủ sân mới</h3>
+                        <button
+                            onClick={() => setShowCreateOwnerForm(false)}
+                            className="text-gray-500 hover:text-gray-700"
+                        >
+                            ✕
+                        </button>
+                    </div>
+
+                    <form onSubmit={handleCreateOwner} className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Tên đăng nhập *
+                            </label>
+                            <Input
+                                type="text"
+                                value={createOwnerForm.username}
+                                onChange={(e) =>
+                                    setCreateOwnerForm({
+                                        ...createOwnerForm,
+                                        username: e.target.value,
+                                    })
+                                }
+                                required
+                                placeholder="courtowner1"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Họ và tên *
+                            </label>
+                            <Input
+                                type="text"
+                                value={createOwnerForm.fullName}
+                                onChange={(e) =>
+                                    setCreateOwnerForm({
+                                        ...createOwnerForm,
+                                        fullName: e.target.value,
+                                    })
+                                }
+                                required
+                                placeholder="Nguyễn Văn A"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Email *
+                            </label>
+                            <Input
+                                type="email"
+                                value={createOwnerForm.email}
+                                onChange={(e) =>
+                                    setCreateOwnerForm({
+                                        ...createOwnerForm,
+                                        email: e.target.value,
+                                    })
+                                }
+                                required
+                                placeholder="owner@example.com"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Số điện thoại *
+                            </label>
+                            <Input
+                                type="tel"
+                                value={createOwnerForm.phone}
+                                onChange={(e) =>
+                                    setCreateOwnerForm({
+                                        ...createOwnerForm,
+                                        phone: e.target.value,
+                                    })
+                                }
+                                required
+                                placeholder="0123456789"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Mật khẩu *
+                            </label>
+                            <Input
+                                type="password"
+                                value={createOwnerForm.password}
+                                onChange={(e) =>
+                                    setCreateOwnerForm({
+                                        ...createOwnerForm,
+                                        password: e.target.value,
+                                    })
+                                }
+                                required
+                                placeholder="Ít nhất 6 ký tự"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Địa chỉ
+                            </label>
+                            <Input
+                                type="text"
+                                value={createOwnerForm.address}
+                                onChange={(e) =>
+                                    setCreateOwnerForm({
+                                        ...createOwnerForm,
+                                        address: e.target.value,
+                                    })
+                                }
+                                placeholder="123 Đường ABC, Quận 1, TP.HCM"
+                            />
+                        </div>
+
+                        <div className="flex justify-end space-x-3 pt-4">
+                            <Button
+                                type="button"
+                                onClick={() => setShowCreateOwnerForm(false)}
+                                className="bg-gray-300 text-gray-700 hover:bg-gray-400"
+                            >
+                                Hủy
+                            </Button>
+                            <Button
+                                type="submit"
+                                disabled={loading}
+                                className="bg-blue-600 hover:bg-blue-700"
+                            >
+                                {loading ? "Đang tạo..." : "Tạo chủ sân"}
+                            </Button>
+                        </div>
+                    </form>
+                </div>
+            </div>
         );
     };
 
     return (
-        <ProtectedRoute requiredRole="COURT_OWNER">
+        <ProtectedRoute requiredRole="ADMIN">
             <div className="min-h-screen bg-gray-50">
-                {/* Header */}
-                <header className="bg-white border-b border-gray-200 sticky top-0 z-40">
+                <div className="bg-white shadow-sm border-b">
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                        <div className="flex justify-between items-center h-16">
-                            <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 bg-red-600 rounded-lg flex items-center justify-center">
-                                    <svg
-                                        className="w-5 h-5 text-white"
-                                        fill="currentColor"
-                                        viewBox="0 0 20 20"
-                                    >
-                                        <path d="M4 3a2 2 0 100 4h12a2 2 0 100-4H4z" />
-                                        <path
-                                            fillRule="evenodd"
-                                            d="M3 8h14v7a2 2 0 01-2 2H5a2 2 0 01-2-2V8zm5 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z"
-                                            clipRule="evenodd"
-                                        />
-                                    </svg>
-                                </div>
-                                <span className="text-xl font-bold text-gray-900">
-                                    Admin Dashboard
-                                </span>
-                            </div>
-
-                            <Link
-                                href="/"
-                                className="text-gray-600 hover:text-gray-900 flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-gray-100 transition-colors"
-                            >
-                                <svg
-                                    className="w-5 h-5"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                >
-                                    <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth={2}
-                                        d="M10 19l-7-7m0 0l7-7m-7 7h18"
-                                    />
-                                </svg>
-                                Về trang chủ
-                            </Link>
+                        <div className="py-6">
+                            <h1 className="text-3xl font-bold text-gray-900">
+                                Admin Dashboard
+                            </h1>
+                            <p className="mt-2 text-gray-600">
+                                Quản lý hệ thống sân cầu lông
+                            </p>
                         </div>
-                    </div>
-                </header>
-
-                {/* Navigation Tabs */}
-                <div className="bg-white border-b border-gray-200">
-                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                        <nav className="flex space-x-8">
-                            <button
-                                onClick={() => setActiveTab("manage")}
-                                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-                                    activeTab === "manage"
-                                        ? "border-red-500 text-red-600"
-                                        : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                                }`}
-                            >
-                                <div className="flex items-center gap-2">
-                                    <svg
-                                        className="w-5 h-5"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        viewBox="0 0 24 24"
-                                    >
-                                        <path
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            strokeWidth={2}
-                                            d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
-                                        />
-                                    </svg>
-                                    Quản lý sân ({courts.length})
-                                </div>
-                            </button>
-                            <button
-                                onClick={() => setActiveTab("create")}
-                                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-                                    activeTab === "create"
-                                        ? "border-red-500 text-red-600"
-                                        : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                                }`}
-                            >
-                                <div className="flex items-center gap-2">
-                                    <svg
-                                        className="w-5 h-5"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        viewBox="0 0 24 24"
-                                    >
-                                        <path
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            strokeWidth={2}
-                                            d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-                                        />
-                                    </svg>
-                                    Tạo sân mới
-                                </div>
-                            </button>
-                        </nav>
                     </div>
                 </div>
 
-                {/* Main Content */}
-                <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                    {activeTab === "manage" ? (
-                        <div>
-                            {/* Header quản lý sân */}
-                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
-                                <div>
-                                    <h1 className="text-2xl font-bold text-gray-900 mb-2">
-                                        Quản lý sân
-                                    </h1>
-                                    <p className="text-gray-600">
-                                        Danh sách tất cả các sân trong hệ thống
-                                    </p>
-                                </div>
-
-                                <div className="mt-4 sm:mt-0 sm:w-80">
-                                    <Input
-                                        placeholder="Tìm kiếm sân..."
-                                        value={searchTerm}
-                                        onChange={(e) =>
-                                            setSearchTerm(e.target.value)
-                                        }
-                                        className="w-full"
-                                    />
-                                </div>
-                            </div>
-
-                            {/* Stats Cards */}
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                                    <div className="flex items-center">
-                                        <div className="p-2 bg-blue-100 rounded-lg">
-                                            <svg
-                                                className="w-6 h-6 text-blue-600"
-                                                fill="none"
-                                                stroke="currentColor"
-                                                viewBox="0 0 24 24"
-                                            >
-                                                <path
-                                                    strokeLinecap="round"
-                                                    strokeLinejoin="round"
-                                                    strokeWidth={2}
-                                                    d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
-                                                />
-                                            </svg>
-                                        </div>
-                                        <div className="ml-4">
-                                            <p className="text-sm font-medium text-gray-600">
-                                                Tổng số sân
-                                            </p>
-                                            <p className="text-2xl font-bold text-gray-900">
-                                                {courts.length}
-                                            </p>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                                    <div className="flex items-center">
-                                        <div className="p-2 bg-green-100 rounded-lg">
-                                            <svg
-                                                className="w-6 h-6 text-green-600"
-                                                fill="none"
-                                                stroke="currentColor"
-                                                viewBox="0 0 24 24"
-                                            >
-                                                <path
-                                                    strokeLinecap="round"
-                                                    strokeLinejoin="round"
-                                                    strokeWidth={2}
-                                                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                                                />
-                                            </svg>
-                                        </div>
-                                        <div className="ml-4">
-                                            <p className="text-sm font-medium text-gray-600">
-                                                Sân hoạt động
-                                            </p>
-                                            <p className="text-2xl font-bold text-gray-900">
-                                                {getActiveCourts().length}
-                                            </p>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                                    <div className="flex items-center">
-                                        <div className="p-2 bg-yellow-100 rounded-lg">
-                                            <svg
-                                                className="w-6 h-6 text-yellow-600"
-                                                fill="none"
-                                                stroke="currentColor"
-                                                viewBox="0 0 24 24"
-                                            >
-                                                <path
-                                                    strokeLinecap="round"
-                                                    strokeLinejoin="round"
-                                                    strokeWidth={2}
-                                                    d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"
-                                                />
-                                            </svg>
-                                        </div>
-                                        <div className="ml-4">
-                                            <p className="text-sm font-medium text-gray-600">
-                                                Đánh giá trung bình
-                                            </p>
-                                            <p className="text-2xl font-bold text-gray-900">
-                                                {getAverageRating().toFixed(1)}
-                                            </p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Danh sách sân */}
-                            {loading ? (
-                                <div className="flex justify-center items-center py-12">
-                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div>
-                                    <span className="ml-3 text-gray-600">
-                                        Đang tải...
-                                    </span>
-                                </div>
-                            ) : filteredCourts.length > 0 ? (
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                    {filteredCourts.map((court) => (
-                                        <CourtCard
-                                            key={court.id}
-                                            court={court}
-                                        />
-                                    ))}
-                                </div>
-                            ) : (
-                                <div className="text-center py-12">
-                                    <svg
-                                        className="mx-auto h-12 w-12 text-gray-400"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        viewBox="0 0 24 24"
-                                    >
-                                        <path
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            strokeWidth={2}
-                                            d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
-                                        />
-                                    </svg>
-                                    <h3 className="mt-2 text-sm font-medium text-gray-900">
-                                        Không tìm thấy sân nào
-                                    </h3>
-                                    <p className="mt-1 text-sm text-gray-500">
-                                        {searchTerm
-                                            ? "Thử tìm kiếm với từ khóa khác"
-                                            : "Chưa có sân nào trong hệ thống"}
-                                    </p>
-                                </div>
-                            )}
-                        </div>
-                    ) : (
-                        <div>
-                            {/* Header tạo sân */}
-                            <div className="mb-8">
-                                <h1 className="text-2xl font-bold text-gray-900 mb-2">
-                                    Tạo sân mới
-                                </h1>
-                                <p className="text-gray-600">
-                                    Thêm một sân mới vào hệ thống quản lý
-                                </p>
-                            </div>
-
-                            {/* Form tạo sân */}
-                            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                                {/* Form Message */}
-                                {formMessage && (
-                                    <div
-                                        className={`mb-6 p-4 rounded-xl flex items-center gap-3 ${
-                                            formMessage.type === "success"
-                                                ? "bg-green-100 text-green-800 border border-green-200"
-                                                : "bg-red-100 text-red-800 border border-red-200"
-                                        }`}
-                                    >
-                                        {formMessage.type === "success" ? (
-                                            <svg
-                                                className="w-5 h-5"
-                                                fill="currentColor"
-                                                viewBox="0 0 20 20"
-                                            >
-                                                <path
-                                                    fillRule="evenodd"
-                                                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                                                    clipRule="evenodd"
-                                                />
-                                            </svg>
-                                        ) : (
-                                            <svg
-                                                className="w-5 h-5"
-                                                fill="currentColor"
-                                                viewBox="0 0 20 20"
-                                            >
-                                                <path
-                                                    fillRule="evenodd"
-                                                    d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
-                                                    clipRule="evenodd"
-                                                />
-                                            </svg>
-                                        )}
-                                        <span className="font-medium">
-                                            {formMessage.text}
-                                        </span>
-                                    </div>
-                                )}
-
-                                <form
-                                    onSubmit={handleSubmit}
-                                    className="space-y-6"
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                    {/* Navigation Tabs */}
+                    <div className="border-b border-gray-200 mb-8">
+                        <nav className="-mb-px flex space-x-8">
+                            {[
+                                { key: "dashboard", label: "Dashboard" },
+                                { key: "courts", label: "Quản lý sân" },
+                                { key: "owners", label: "Chủ sân" },
+                                { key: "users", label: "Người dùng" },
+                            ].map((tab) => (
+                                <button
+                                    key={tab.key}
+                                    onClick={() => setActiveTab(tab.key as any)}
+                                    className={`whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm ${
+                                        activeTab === tab.key
+                                            ? "border-red-500 text-red-600"
+                                            : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                                    }`}
                                 >
-                                    {/* Thông tin cơ bản */}
-                                    <div>
-                                        <h3 className="text-lg font-medium text-gray-900 mb-4">
-                                            Thông tin cơ bản
-                                        </h3>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                            <Input
-                                                label="Tên sân *"
-                                                placeholder="Ví dụ: Sân Cầu Lông ABC"
-                                                value={formData.name}
-                                                onChange={(e) =>
-                                                    handleInputChange(
-                                                        "name",
-                                                        e.target.value
-                                                    )
-                                                }
-                                                required
-                                            />
+                                    {tab.label}
+                                </button>
+                            ))}
+                        </nav>
+                    </div>
 
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                                    Loại sân *
-                                                </label>
-                                                <select
-                                                    value={formData.sportTypes}
-                                                    onChange={(e) =>
-                                                        handleInputChange(
-                                                            "sportTypes",
-                                                            e.target.value
-                                                        )
-                                                    }
-                                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
-                                                    required
-                                                >
-                                                    <option value="Cầu lông">
-                                                        Cầu lông
-                                                    </option>
-                                                    <option value="Pickleball">
-                                                        Pickleball
-                                                    </option>
-                                                    <option value="Cả hai">
-                                                        Cả hai
-                                                    </option>
-                                                </select>
-                                            </div>
-                                        </div>
-                                    </div>
+                    {/* Tab Content */}
+                    {activeTab === "dashboard" && renderDashboard()}
+                    {activeTab === "courts" && renderCourts()}
+                    {activeTab === "owners" && renderOwners()}
+                    {activeTab === "users" && renderUsers()}
+                </div>
 
-                                    {/* Địa chỉ và mô tả */}
-                                    <div>
-                                        <h3 className="text-lg font-medium text-gray-900 mb-4">
-                                            Địa chỉ và mô tả
-                                        </h3>
-                                        <div className="space-y-4">
-                                            <Input
-                                                label="Địa chỉ *"
-                                                placeholder="Ví dụ: 123 Nguyễn Văn Thoại, Ngũ Hành Sơn, Đà Nẵng"
-                                                value={formData.address}
-                                                onChange={(e) =>
-                                                    handleInputChange(
-                                                        "address",
-                                                        e.target.value
-                                                    )
-                                                }
-                                                required
-                                            />
-
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                                    Mô tả
-                                                </label>
-                                                <textarea
-                                                    placeholder="Mô tả về sân, tiện ích, đặc điểm nổi bật..."
-                                                    value={formData.description}
-                                                    onChange={(e) =>
-                                                        handleInputChange(
-                                                            "description",
-                                                            e.target.value
-                                                        )
-                                                    }
-                                                    rows={3}
-                                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
-                                                />
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Thời gian hoạt động */}
-                                    <div>
-                                        <h3 className="text-lg font-medium text-gray-900 mb-4">
-                                            Thời gian hoạt động
-                                        </h3>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                            <Input
-                                                label="Giờ hoạt động"
-                                                placeholder="Ví dụ: 6:00 - 22:00"
-                                                value={formData.operatingHours}
-                                                onChange={(e) =>
-                                                    handleInputChange(
-                                                        "operatingHours",
-                                                        e.target.value
-                                                    )
-                                                }
-                                            />
-
-                                            <div className="grid grid-cols-2 gap-4">
-                                                <Input
-                                                    label="Vĩ độ (Latitude)"
-                                                    type="number"
-                                                    step="any"
-                                                    placeholder="16.0471"
-                                                    value={formData.latitude}
-                                                    onChange={(e) =>
-                                                        handleInputChange(
-                                                            "latitude",
-                                                            parseFloat(
-                                                                e.target.value
-                                                            ) || 0
-                                                        )
-                                                    }
-                                                />
-                                                <Input
-                                                    label="Kinh độ (Longitude)"
-                                                    type="number"
-                                                    step="any"
-                                                    placeholder="108.2068"
-                                                    value={formData.longitude}
-                                                    onChange={(e) =>
-                                                        handleInputChange(
-                                                            "longitude",
-                                                            parseFloat(
-                                                                e.target.value
-                                                            ) || 0
-                                                        )
-                                                    }
-                                                />
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Thông tin liên hệ */}
-                                    <div>
-                                        <h3 className="text-lg font-medium text-gray-900 mb-4">
-                                            Thông tin liên hệ
-                                        </h3>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                            <Input
-                                                label="Số điện thoại"
-                                                placeholder="0901234567"
-                                                value={formData.phone}
-                                                onChange={(e) =>
-                                                    handleInputChange(
-                                                        "phone",
-                                                        e.target.value
-                                                    )
-                                                }
-                                            />
-
-                                            <Input
-                                                label="Email"
-                                                type="email"
-                                                placeholder="example@gmail.com"
-                                                value={formData.email}
-                                                onChange={(e) =>
-                                                    handleInputChange(
-                                                        "email",
-                                                        e.target.value
-                                                    )
-                                                }
-                                            />
-                                        </div>
-                                    </div>
-
-                                    {/* Tiện ích */}
-                                    <div>
-                                        <h3 className="text-lg font-medium text-gray-900 mb-4">
-                                            Tiện ích
-                                        </h3>
-                                        <div className="space-y-4">
-                                            <div className="flex gap-2">
-                                                <Input
-                                                    placeholder="Thêm tiện ích (Ví dụ: Điều hòa, Wifi, Đồ uống...)"
-                                                    value={newAmenity}
-                                                    onChange={(e) =>
-                                                        setNewAmenity(
-                                                            e.target.value
-                                                        )
-                                                    }
-                                                    onKeyPress={(e) =>
-                                                        e.key === "Enter" &&
-                                                        addAmenity()
-                                                    }
-                                                    className="flex-1"
-                                                />
-                                                <Button
-                                                    type="button"
-                                                    onClick={addAmenity}
-                                                    variant="outline"
-                                                    className="px-4"
-                                                >
-                                                    Thêm
-                                                </Button>
-                                            </div>
-
-                                            {getAmenitiesArray().length > 0 && (
-                                                <div className="flex flex-wrap gap-2">
-                                                    {getAmenitiesArray().map(
-                                                        (amenity, index) => (
-                                                            <span
-                                                                key={index}
-                                                                className="inline-flex items-center gap-1 px-3 py-1 bg-red-100 text-red-800 rounded-full text-sm"
-                                                            >
-                                                                {amenity}
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() =>
-                                                                        removeAmenity(
-                                                                            amenity
-                                                                        )
-                                                                    }
-                                                                    className="hover:text-red-600"
-                                                                >
-                                                                    ×
-                                                                </button>
-                                                            </span>
-                                                        )
-                                                    )}
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    {/* Submit buttons */}
-                                    <div className="flex justify-end gap-4 pt-6 border-t border-gray-200">
-                                        <Button
-                                            type="button"
-                                            variant="outline"
-                                            onClick={() =>
-                                                setActiveTab("manage")
-                                            }
-                                            disabled={creating}
-                                        >
-                                            Hủy bỏ
-                                        </Button>
-                                        <Button
-                                            type="submit"
-                                            className="bg-red-600 hover:bg-red-700 text-white px-8"
-                                            disabled={creating}
-                                        >
-                                            {creating ? (
-                                                <div className="flex items-center gap-2">
-                                                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                                    Đang tạo...
-                                                </div>
-                                            ) : (
-                                                "Tạo sân mới"
-                                            )}
-                                        </Button>
-                                    </div>
-                                </form>
-                            </div>
-                        </div>
-                    )}
-                </main>
+                {/* Modals */}
+                {renderCreateCourtModal()}
+                {renderCreateOwnerModal()}
             </div>
         </ProtectedRoute>
     );

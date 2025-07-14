@@ -8,11 +8,15 @@ import org.mapstruct.*;
 import java.util.Arrays;
 import java.util.List;
 
-@Mapper(componentModel = "spring", uses = {CourtOwnerMapper.class, CourtPricingMapper.class})
+@Mapper(componentModel = "spring")
 public interface CourtMapper {
     
     @Mapping(target = "images", source = "images", qualifiedByName = "stringToList")
     @Mapping(target = "distance", ignore = true)
+    @Mapping(target = "price", ignore = true)
+    @Mapping(target = "operatingHours", ignore = true)
+    @Mapping(target = "owner", ignore = true) // Ignore owner to avoid circular dependency
+    @Mapping(target = "pricings", ignore = true) // Ignore pricings to avoid circular dependency
     CourtDto toDto(Court court);
     
     @Mapping(target = "id", ignore = true)
@@ -25,6 +29,13 @@ public interface CourtMapper {
     @Mapping(target = "reviews", ignore = true)
     @Mapping(target = "favorites", ignore = true)
     @Mapping(target = "images", source = "images", qualifiedByName = "listToString")
+    @Mapping(target = "city", ignore = true)
+    @Mapping(target = "district", ignore = true)
+    @Mapping(target = "totalCourts", ignore = true)
+    @Mapping(target = "openingTime", ignore = true)
+    @Mapping(target = "closingTime", ignore = true)
+    @Mapping(target = "featured", ignore = true)
+    @Mapping(target = "coverImage", ignore = true)
     Court toEntity(CreateCourtRequest request);
     
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
@@ -38,6 +49,13 @@ public interface CourtMapper {
     @Mapping(target = "reviews", ignore = true)
     @Mapping(target = "favorites", ignore = true)
     @Mapping(target = "images", source = "images", qualifiedByName = "listToString")
+    @Mapping(target = "city", ignore = true)
+    @Mapping(target = "district", ignore = true)
+    @Mapping(target = "totalCourts", ignore = true)
+    @Mapping(target = "openingTime", ignore = true)
+    @Mapping(target = "closingTime", ignore = true)
+    @Mapping(target = "featured", ignore = true)
+    @Mapping(target = "coverImage", ignore = true)
     void updateEntityFromRequest(CreateCourtRequest request, @MappingTarget Court court);
     
     List<CourtDto> toDtoList(List<Court> courts);

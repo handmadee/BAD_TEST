@@ -1,6 +1,8 @@
 package com.badminton.courtmanagement.repository;
 
 import com.badminton.courtmanagement.entity.CourtOwner;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -11,14 +13,17 @@ import java.util.Optional;
 @Repository
 public interface CourtOwnerRepository extends JpaRepository<CourtOwner, Long> {
     
-    @Query("SELECT co FROM CourtOwner co WHERE co.user.id = :userId")
-    Optional<CourtOwner> findByUserId(@Param("userId") Long userId);
+    Optional<CourtOwner> findByUserId(Long userId);
     
-    @Query("SELECT co FROM CourtOwner co WHERE co.user.email = :email")
-    Optional<CourtOwner> findByUserEmail(@Param("email") String email);
+    Optional<CourtOwner> findByUserEmail(String email);
     
-    @Query("SELECT COUNT(co) FROM CourtOwner co WHERE co.status = :status")
-    Long countByStatus(@Param("status") CourtOwner.OwnerStatus status);
+    @Query("SELECT co FROM CourtOwner co WHERE " +
+           "(:keyword IS NULL OR :keyword = '' OR " +
+           "LOWER(co.user.fullName) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+           "LOWER(co.user.email) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+           "LOWER(co.businessName) LIKE LOWER(CONCAT('%', :keyword, '%')))")
+    Page<CourtOwner> findByKeyword(@Param("keyword") String keyword, Pageable pageable);
     
-    boolean existsByUserId(Long userId);
+    @Query("SELECT co FROM CourtOwner co WHERE co.verificationStatus = :status")
+    Page<CourtOwner> findByVerificationStatus(@Param("status") CourtOwner.VerificationStatus status, Pageable pageable);
 } 

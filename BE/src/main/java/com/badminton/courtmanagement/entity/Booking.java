@@ -60,6 +60,9 @@ public class Booking extends BaseEntity {
     @Column(name = "vietqr_url", columnDefinition = "TEXT")
     private String vietqrUrl;
     
+    @Column(name = "booking_reference", length = 50, unique = true)
+    private String bookingReference;
+    
     @Column(columnDefinition = "TEXT")
     private String notes;
     

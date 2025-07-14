@@ -18,6 +18,7 @@ public interface TeamPostService {
     // Listing and search
     PageResponse<TeamPostDto> getAllTeamPosts(Pageable pageable);
     PageResponse<TeamPostDto> getMyTeamPosts(Pageable pageable);
+    PageResponse<TeamPostDto> getJoinedTeams(Pageable pageable);
     PageResponse<TeamPostDto> searchTeamPosts(String keyword, String sport, String skillLevel, 
                                              String location, String date, Pageable pageable);
     
@@ -42,4 +43,7 @@ public interface TeamPostService {
     boolean isTeamPostFull(Long teamPostId);
     boolean isUserInTeam(Long teamPostId, Long userId);
     boolean canUserJoinTeam(Long teamPostId, Long userId);
+    
+    // Message and join
+    TeamMemberDto sendMessageAndJoinRequest(Long teamPostId, String message);
 } 

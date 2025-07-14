@@ -12,6 +12,7 @@ import com.badminton.courtmanagement.repository.CourtOwnerRepository;
 import com.badminton.courtmanagement.repository.CourtRepository;
 import com.badminton.courtmanagement.repository.UserRepository;
 import com.badminton.courtmanagement.service.CourtService;
+import com.badminton.courtmanagement.service.DistanceService;
 import com.badminton.courtmanagement.specification.CourtSpecification;
 import com.badminton.courtmanagement.utils.SecurityUtils;
 import com.badminton.courtmanagement.utils.ValidationUtils;
@@ -39,6 +40,7 @@ public class CourtServiceImpl implements CourtService {
     private final CourtOwnerRepository courtOwnerRepository;
     private final UserRepository userRepository;
     private final CourtMapper courtMapper;
+    private final DistanceService distanceService;
     
     @Override
     public PageResponse<CourtDto> getAllCourts(Pageable pageable) {
@@ -87,6 +89,62 @@ public class CourtServiceImpl implements CourtService {
     
     @Override
     @Transactional
+    public CourtDto createCourtAsAdmin(CreateCourtRequest request) {
+        log.debug("Admin creating new court: {}", request.getName());
+        
+        // Validate request
+        validateCourtRequest(request);
+        
+        // For admin-created courts, we need a default court owner or create one
+        // Let's create a system court owner if none exists
+        CourtOwner systemOwner = getOrCreateSystemCourtOwner();
+        
+        // Convert to entity
+        Court court = courtMapper.toEntity(request);
+        court.setOwner(systemOwner);
+        court.setStatus(Court.CourtStatus.ACTIVE);
+        
+        // Save court
+        Court savedCourt = courtRepository.save(court);
+        log.info("Admin created court with id: {}", savedCourt.getId());
+        
+        return courtMapper.toDto(savedCourt);
+    }
+    
+    private CourtOwner getOrCreateSystemCourtOwner() {
+        // Try to find existing system court owner
+        return courtOwnerRepository.findByUserEmail("system@badminton.com")
+                .orElseGet(() -> {
+                    // Create system user if not exists
+                    User systemUser = userRepository.findByEmail("system@badminton.com")
+                            .orElseGet(() -> {
+                                User user = User.builder()
+                                        .username("system")
+                                        .email("system@badminton.com")
+                                        .fullName("System Administrator")
+                                        .password("N/A") // Won't be used for login
+                                        .role(User.UserRole.COURT_OWNER)
+                                        .status(User.UserStatus.ACTIVE)
+                                        .emailVerified(true)
+                                        .build();
+                                return userRepository.save(user);
+                            });
+                    
+                    // Create court owner profile
+                    CourtOwner owner = CourtOwner.builder()
+                            .user(systemUser)
+                            .businessName("System Courts")
+                            .businessEmail("system@badminton.com")
+                            .description("Courts created by system administrator")
+                            .verificationStatus(CourtOwner.VerificationStatus.VERIFIED)
+                            .build();
+                    
+                    return courtOwnerRepository.save(owner);
+                });
+    }
+    
+    @Override
+    @Transactional
     public CourtDto updateCourt(Long id, CreateCourtRequest request) {
         log.debug("Updating court id: {}", id);
         
@@ -131,8 +189,8 @@ public class CourtServiceImpl implements CourtService {
                                                BigDecimal minRating, BigDecimal latitude, 
                                                BigDecimal longitude, Double radiusKm, 
                                                Pageable pageable) {
-        log.debug("Searching courts with keyword: {}, sportType: {}, minRating: {}", 
-                 keyword, sportType, minRating);
+        log.debug("Searching courts with keyword: {}, sportType: {}, minRating: {}, location: ({}, {})", 
+                 keyword, sportType, minRating, latitude, longitude);
         
         Specification<Court> spec = Specification.where(null);
         
@@ -148,47 +206,147 @@ public class CourtServiceImpl implements CourtService {
             spec = spec.and(CourtSpecification.hasRatingBetween(minRating, null));
         }
         
-        if (latitude != null && longitude != null && radiusKm != null) {
-            // For now, we'll use bounding box approximation instead of radius
-            // This is a simplified implementation
-            BigDecimal delta = BigDecimal.valueOf(radiusKm / 111.0); // Rough km to degree conversion
-            spec = spec.and(CourtSpecification.withinBounds(
-                latitude.subtract(delta), latitude.add(delta),
-                longitude.subtract(delta), longitude.add(delta)
-            ));
-        }
-        
         // Only active courts
         spec = spec.and(CourtSpecification.hasStatus(Court.CourtStatus.ACTIVE));
         
-        Page<Court> courts = courtRepository.findAll(spec, pageable);
-        
-        return PageResponse.of(courts.map(courtMapper::toDto));
+        // Get all courts that match criteria (without pagination first if we need to sort by distance)
+        List<Court> allCourts;
+        if (latitude != null && longitude != null) {
+            // Get all courts to calculate distance and sort
+            allCourts = courtRepository.findAll(spec);
+            
+            // Calculate distances and filter by radius if specified
+            List<CourtDto> courtsWithDistance = allCourts.stream()
+                .map(court -> {
+                    CourtDto dto = courtMapper.toDto(court);
+                    
+                    // Set distance
+                    if (court.getLatitude() != null && court.getLongitude() != null) {
+                        Double distance = distanceService.calculateDistance(
+                            latitude, longitude,
+                            court.getLatitude(), court.getLongitude()
+                        );
+                        dto.setDistance(distance);
+                    } else {
+                        dto.setDistance(null);
+                    }
+                    
+                    // Set price from court pricings (get minimum price)
+                    if (court.getPricings() != null && !court.getPricings().isEmpty()) {
+                        BigDecimal minPrice = court.getPricings().stream()
+                            .map(pricing -> pricing.getBasePrice())
+                            .min(BigDecimal::compareTo)
+                            .orElse(null);
+                        dto.setPrice(minPrice);
+                    }
+                    
+                    return dto;
+                })
+                .filter(dto -> {
+                    // Filter by radius if specified
+                    if (radiusKm != null && dto.getDistance() != null) {
+                        return dto.getDistance() <= radiusKm;
+                    }
+                    return true;
+                })
+                .sorted((c1, c2) -> {
+                    // Sort by distance (closest first)
+                    if (c1.getDistance() == null && c2.getDistance() == null) return 0;
+                    if (c1.getDistance() == null) return 1;
+                    if (c2.getDistance() == null) return -1;
+                    return Double.compare(c1.getDistance(), c2.getDistance());
+                })
+                .toList();
+            
+            // Manual pagination after sorting by distance
+            int start = pageable.getPageNumber() * pageable.getPageSize();
+            int end = Math.min(start + pageable.getPageSize(), courtsWithDistance.size());
+            
+            List<CourtDto> pageContent = start < courtsWithDistance.size() 
+                ? courtsWithDistance.subList(start, end) 
+                : List.of();
+            
+            return PageResponse.of(
+                pageContent,
+                pageable.getPageNumber(),
+                pageable.getPageSize(),
+                courtsWithDistance.size()
+            );
+        } else {
+            // No location provided, use normal pagination
+            Page<Court> courts = courtRepository.findAll(spec, pageable);
+            return PageResponse.of(courts.map(courtMapper::toDto));
+        }
     }
     
     @Override
     public List<CourtDto> getNearbyCourtsByRadius(BigDecimal latitude, BigDecimal longitude, Double radiusKm) {
-        log.debug("Getting nearby courts at ({}, {}) within {} km", latitude, longitude, radiusKm);
+        log.info("Finding courts within {}km of coordinates ({}, {})", radiusKm, latitude, longitude);
         
-        // Use native query for radius search
-        List<Object[]> results = courtRepository.findCourtsWithinRadius(latitude, longitude, radiusKm, Court.CourtStatus.ACTIVE);
-        
-        // Convert Object[] results to Court entities (simplified implementation)
+        // Get all active courts and filter by distance
         List<Court> courts = courtRepository.findAllActiveCourts().stream()
             .filter(court -> {
                 if (court.getLatitude() == null || court.getLongitude() == null) {
                     return false;
                 }
-                // Simple distance calculation (not accurate but functional)
-                double distance = Math.sqrt(
-                    Math.pow(court.getLatitude().subtract(latitude).doubleValue(), 2) +
-                    Math.pow(court.getLongitude().subtract(longitude).doubleValue(), 2)
-                ) * 111; // Rough conversion to km
+                // Calculate distance using cached service
+                double distance = distanceService.calculateDistance(
+                    latitude.doubleValue(), longitude.doubleValue(),
+                    court.getLatitude().doubleValue(), court.getLongitude().doubleValue()
+                );
                 return distance <= radiusKm;
             })
             .toList();
         
-        return courtMapper.toDtoList(courts);
+        return courts.stream()
+            .map(court -> {
+                CourtDto dto = courtMapper.toDto(court);
+                
+                // Calculate and set distance using cached service
+                if (court.getLatitude() != null && court.getLongitude() != null) {
+                    double distance = distanceService.calculateDistance(
+                        latitude.doubleValue(), longitude.doubleValue(),
+                        court.getLatitude().doubleValue(), court.getLongitude().doubleValue()
+                    );
+                    dto.setDistance(distance);
+                } else {
+                    dto.setDistance(null);
+                }
+                
+                // Set price from court pricings (get minimum price)
+                if (court.getPricings() != null && !court.getPricings().isEmpty()) {
+                    BigDecimal minPrice = court.getPricings().stream()
+                        .map(pricing -> pricing.getBasePrice())
+                        .min(BigDecimal::compareTo)
+                        .orElse(null);
+                    dto.setPrice(minPrice);
+                }
+                
+                return dto;
+            })
+            .toList();
+    }
+    
+    /**
+     * Calculate distance between two points using Haversine formula
+     * @param lat1 Latitude of first point
+     * @param lon1 Longitude of first point  
+     * @param lat2 Latitude of second point
+     * @param lon2 Longitude of second point
+     * @return Distance in kilometers
+     */
+    private double calculateDistance(double lat1, double lon1, double lat2, double lon2) {
+        final int R = 6371; // Radius of the earth in km
+        
+        double latDistance = Math.toRadians(lat2 - lat1);
+        double lonDistance = Math.toRadians(lon2 - lon1);
+        double a = Math.sin(latDistance / 2) * Math.sin(latDistance / 2)
+                + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
+                * Math.sin(lonDistance / 2) * Math.sin(lonDistance / 2);
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        double distance = R * c; // Distance in km
+        
+        return Math.round(distance * 100.0) / 100.0; // Round to 2 decimal places
     }
     
     @Override

@@ -27,14 +27,14 @@ public class CourtOwnerDto {
     @Schema(description = "Tên doanh nghiệp", example = "Công ty TNHH ABC")
     private String businessName;
     
-    @Schema(description = "Giấy phép kinh doanh", example = "0123456789")
-    private String businessLicense;
+    @Schema(description = "Số điện thoại doanh nghiệp", example = "0123456789")
+    private String businessPhone;
     
-    @Schema(description = "Mã số thuế", example = "0123456789")
-    private String taxCode;
+    @Schema(description = "Email doanh nghiệp", example = "business@example.com")
+    private String businessEmail;
     
-    @Schema(description = "Địa chỉ kinh doanh")
-    private String address;
+    @Schema(description = "Mô tả doanh nghiệp")
+    private String description;
     
     @Schema(description = "Tên ngân hàng", example = "MB Bank")
     private String bankName;
@@ -48,12 +48,15 @@ public class CourtOwnerDto {
     @Schema(description = "Tên chủ tài khoản", example = "Nguyen Van A")
     private String accountHolderName;
     
-    @Schema(description = "Trạng thái chủ sân")
-    private CourtOwner.OwnerStatus status;
+    @Schema(description = "Trạng thái xác minh chủ sân")
+    private CourtOwner.VerificationStatus verificationStatus;
     
     @Schema(description = "Thời gian tạo")
     private LocalDateTime createdAt;
     
     @Schema(description = "Thời gian cập nhật")
     private LocalDateTime updatedAt;
+    
+    @Schema(description = "Thời gian xác minh")
+    private LocalDateTime verifiedAt;
 } 

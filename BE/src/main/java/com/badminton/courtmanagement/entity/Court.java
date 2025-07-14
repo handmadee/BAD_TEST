@@ -12,6 +12,7 @@ import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.time.LocalTime;
 import java.util.Set;
 
 @Entity
@@ -33,46 +34,58 @@ public class Court extends BaseEntity {
     private CourtOwner owner;
     
     @NotBlank(message = "Tên sân không được để trống")
-    @Column(nullable = false, length = 200)
+    @Column(nullable = false, length = 255)
     private String name;
-    
-    @NotBlank(message = "Địa chỉ không được để trống")
-    @Column(nullable = false, length = 500)
-    private String address;
     
     @Column(columnDefinition = "TEXT")
     private String description;
     
-    @Column(length = 15)
-    private String phone;
+    @NotBlank(message = "Địa chỉ không được để trống")
+    @Column(nullable = false, columnDefinition = "TEXT")
+    private String address;
     
     @Column(length = 100)
-    private String email;
+    private String city;
     
-    @Column(name = "facebook_url")
-    private String facebookUrl;
+    @Column(length = 100)
+    private String district;
     
-    @Column(name = "operating_hours", length = 100)
-    private String operatingHours;
-    
-    @Column(name = "sport_types", length = 100)
-    private String sportTypes;
-    
-    @Column(columnDefinition = "TEXT")
-    private String amenities;
-    
-    @Column(columnDefinition = "TEXT")
-    private String images;
-    
-    @DecimalMin(value = "0.0", message = "Vĩ độ phải >= 0")
-    @DecimalMax(value = "90.0", message = "Vĩ độ phải <= 90")
+    @DecimalMin(value = "-90.0", message = "Latitude phải >= -90")
+    @DecimalMax(value = "90.0", message = "Latitude phải <= 90")
     @Column(precision = 10, scale = 8)
     private BigDecimal latitude;
     
-    @DecimalMin(value = "-180.0", message = "Kinh độ phải >= -180")
-    @DecimalMax(value = "180.0", message = "Kinh độ phải <= 180")
+    @DecimalMin(value = "-180.0", message = "Longitude phải >= -180")
+    @DecimalMax(value = "180.0", message = "Longitude phải <= 180")
     @Column(precision = 11, scale = 8)
     private BigDecimal longitude;
+    
+    @Column(name = "sport_types", columnDefinition = "SET('BADMINTON', 'PICKLEBALL')", nullable = false)
+    private String sportTypes;
+    
+    @Column(name = "total_courts", nullable = false)
+    @Builder.Default
+    private Integer totalCourts = 1;
+    
+    @Column(name = "opening_time")
+    @Builder.Default
+    private LocalTime openingTime = LocalTime.of(6, 0);
+    
+    @Column(name = "closing_time")
+    @Builder.Default
+    private LocalTime closingTime = LocalTime.of(22, 0);
+    
+    @Column(length = 20)
+    private String phone;
+    
+    @Column(length = 255)
+    private String email;
+    
+    @Column(name = "facebook_url", length = 255)
+    private String facebookUrl;
+    
+    @Column(columnDefinition = "JSON")
+    private String amenities;
     
     @Builder.Default
     @DecimalMin(value = "0.0", message = "Đánh giá phải >= 0")
@@ -89,6 +102,16 @@ public class Court extends BaseEntity {
     @Column(nullable = false, length = 20)
     private CourtStatus status = CourtStatus.ACTIVE;
     
+    @Builder.Default
+    @Column(nullable = false)
+    private Boolean featured = false;
+    
+    @Column(columnDefinition = "JSON")
+    private String images;
+    
+    @Column(name = "cover_image", length = 500)
+    private String coverImage;
+    
     // Relationships
     @OneToMany(mappedBy = "court", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private Set<CourtPricing> pricings;
@@ -104,6 +127,6 @@ public class Court extends BaseEntity {
     
     // Enums
     public enum CourtStatus {
-        ACTIVE, INACTIVE, MAINTENANCE, SUSPENDED
+        ACTIVE, INACTIVE
     }
 } 

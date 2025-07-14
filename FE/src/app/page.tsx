@@ -9,6 +9,7 @@ import { vi } from "date-fns/locale";
 import { authService, courtService, teamService } from "@/lib";
 import type { TeamPost, User } from "@/types/api";
 import { TeamPostCard, CustomSelect } from "@/components/ui";
+import { getFullImageUrl } from "@/utils";
 import Header from "@/components/layout/Header";
 import { Calendar, ChevronLeft, ChevronRight, RotateCcw } from "lucide-react";
 
@@ -53,16 +54,16 @@ export default function HomePage() {
     // Options cho dropdowns
     const sportOptions = [
         { value: "", label: "Tất cả bài đăng" },
-        { value: "Cầu lông", label: "Cầu lông" },
-        { value: "Pickleball", label: "Pickleball" },
+        { value: "BADMINTON", label: "Cầu lông" },
+        { value: "PICKLEBALL", label: "Pickleball" },
     ];
 
     const skillOptions = [
         { value: "", label: "Tất cả trình độ" },
-        { value: "Yếu", label: "Yếu" },
-        { value: "Trung bình", label: "Trung bình" },
-        { value: "Khá", label: "Khá" },
-        { value: "Giỏi", label: "Giỏi" },
+        { value: "WEAK", label: "Yếu" },
+        { value: "AVERAGE", label: "Trung bình" },
+        { value: "GOOD", label: "Khá" },
+        { value: "EXCELLENT", label: "Giỏi" },
     ];
 
     const limitOptions = [
@@ -104,12 +105,46 @@ export default function HomePage() {
             setUser(userResponse.data);
             setDashboardStats(statsResponse.data);
 
-            // Load team posts với filters
+            // Prepare filters for API call
             const filtersToSend = Object.fromEntries(
                 Object.entries(filters).filter(([_, value]) => value !== "")
             );
 
-            const postsResponse = await teamService.getTeamPosts(filtersToSend);
+            // Điều chỉnh page để bắt đầu từ 0
+            const apiPage = filters.page - 1;
+
+            let postsResponse;
+
+            // Check if we have any search filters (excluding pagination)
+            const hasSearchFilters = Object.keys(filtersToSend).some(
+                (key) =>
+                    key !== "page" &&
+                    key !== "limit" &&
+                    filtersToSend[key] !== ""
+            );
+
+            if (hasSearchFilters) {
+                // Use search API when there are filters
+                const searchParams = {
+                    keyword: filtersToSend.keyword?.toString() || "",
+                    sport: filtersToSend.sport?.toString() || "",
+                    skillLevel: filtersToSend.skill_level?.toString() || "",
+                    location: filtersToSend.location?.toString() || "",
+                    date: filtersToSend.date?.toString() || "",
+                    page: apiPage,
+                    size: parseInt(filters.limit.toString()),
+                };
+                postsResponse = await teamService.searchTeamPosts(searchParams);
+            } else {
+                // Use simple getAllTeamPosts when no filters
+                postsResponse = await teamService.getTeamPosts({
+                    page: apiPage,
+                    size: parseInt(filters.limit.toString()),
+                });
+            }
+
+            console.log("API Response:", postsResponse); // Kiểm tra response
+            console.log("Team Posts:", postsResponse.data.content); // Kiểm tra content
             setTeamPosts(postsResponse.data.content || []);
             setPagination({
                 totalPages: postsResponse.data.totalPages,

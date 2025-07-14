@@ -2,12 +2,12 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { courtService } from "@/lib";
 import type { Court, CourtSearchParams } from "@/types/api";
 import { CustomSelect } from "@/components/ui";
 import Header from "@/components/layout/Header";
 import { CourtCard } from "@/components/ui/CourtCard";
+import Map from "@/components/ui/Map";
 
 export default function CourtsPage() {
     const [courts, setCourts] = useState<Court[]>([]);
@@ -17,21 +17,65 @@ export default function CourtsPage() {
         sportType: "",
         minRating: undefined,
         page: 0,
-        size: 12,
+        size: 5, // 5 sân mỗi trang cho sidebar
     });
     const [totalPages, setTotalPages] = useState(0);
+    const [selectedCourt, setSelectedCourt] = useState<Court | null>(null);
+    const [userLocation, setUserLocation] = useState<{
+        lat: number;
+        lng: number;
+    } | null>(null);
 
     // Search input
     const [searchKeyword, setSearchKeyword] = useState("");
 
     useEffect(() => {
         loadCourts();
-    }, [searchParams]);
+    }, [searchParams, userLocation]);
+
+    // Get user location on page load
+    useEffect(() => {
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    setUserLocation({
+                        lat: position.coords.latitude,
+                        lng: position.coords.longitude,
+                    });
+                },
+                (error) => {
+                    console.log("Không thể lấy vị trí:", error);
+                    // Default to Da Nang center
+                    setUserLocation({
+                        lat: 16.0471,
+                        lng: 108.2068,
+                    });
+                }
+            );
+        } else {
+            // Default to Da Nang center
+            setUserLocation({
+                lat: 16.0471,
+                lng: 108.2068,
+            });
+        }
+    }, []);
 
     const loadCourts = async () => {
         setLoading(true);
         try {
-            const response = await courtService.searchCourts(searchParams);
+            // Add user location to search params if available
+            const searchParamsWithLocation = {
+                ...searchParams,
+                ...(userLocation && {
+                    latitude: userLocation.lat,
+                    longitude: userLocation.lng,
+                }),
+            };
+
+            const response = await courtService.searchCourts(
+                searchParamsWithLocation
+            );
             setCourts(response.data.content || []);
             setTotalPages(response.data.totalPages || 0);
         } catch (error) {
@@ -72,8 +116,12 @@ export default function CourtsPage() {
             sportType: "",
             minRating: undefined,
             page: 0,
-            size: 12,
+            size: 5,
         });
+    };
+
+    const handleCourtSelect = (court: Court) => {
+        setSelectedCourt(court);
     };
 
     const sportOptions = [
@@ -94,22 +142,22 @@ export default function CourtsPage() {
         <div className="min-h-screen bg-gray-50">
             <Header />
 
-            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
-                {/* Page Title */}
-                <div className="mb-8">
-                    <h1 className="text-4xl font-bold text-gray-900 mb-4">
+            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                {/* Page Header */}
+                <div className="mb-6">
+                    <h1 className="text-3xl font-bold text-gray-900 mb-2">
                         Tìm sân cầu lông
                     </h1>
-                    <p className="text-lg text-gray-600">
-                        Khám phá các sân cầu lông chất lượng gần bạn
+                    <p className="text-gray-600">
+                        Khám phá các sân cầu lông chất lượng gần bạn trên bản đồ
                     </p>
                 </div>
 
                 {/* Search & Filters */}
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 mb-8">
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
                     {/* Search Bar */}
-                    <form onSubmit={handleSearch} className="mb-6">
-                        <div className="flex gap-4">
+                    <form onSubmit={handleSearch} className="mb-4">
+                        <div className="flex gap-3">
                             <div className="flex-1">
                                 <input
                                     type="text"
@@ -118,12 +166,12 @@ export default function CourtsPage() {
                                     onChange={(e) =>
                                         setSearchKeyword(e.target.value)
                                     }
-                                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 text-lg"
+                                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
                                 />
                             </div>
                             <button
                                 type="submit"
-                                className="bg-red-600 text-white px-8 py-3 rounded-xl font-medium hover:bg-red-700 transition-colors"
+                                className="bg-red-600 text-white px-6 py-2.5 rounded-lg font-medium hover:bg-red-700 transition-colors"
                             >
                                 <svg
                                     className="w-5 h-5"
@@ -143,8 +191,8 @@ export default function CourtsPage() {
                     </form>
 
                     {/* Filters */}
-                    <div className="flex flex-col sm:flex-row gap-4 items-end">
-                        <div className="flex flex-col sm:flex-row gap-4 flex-1">
+                    <div className="flex flex-col sm:flex-row gap-3 items-end">
+                        <div className="flex flex-col sm:flex-row gap-3 flex-1">
                             <CustomSelect
                                 label="Môn thể thao"
                                 value={searchParams.sportType || ""}
@@ -174,7 +222,7 @@ export default function CourtsPage() {
 
                         <button
                             onClick={handleResetFilters}
-                            className="flex items-center gap-2 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl transition-colors font-medium"
+                            className="flex items-center gap-2 px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors font-medium"
                         >
                             <svg
                                 className="w-4 h-4"
@@ -194,227 +242,152 @@ export default function CourtsPage() {
                     </div>
                 </div>
 
-                {/* Results Header */}
-                <div className="flex items-center justify-between mb-6">
-                    <h2 className="text-2xl font-bold text-gray-900">
-                        Danh sách sân ({courts.length} kết quả)
-                    </h2>
-                </div>
-
-                {/* Loading State */}
-                {loading && (
-                    <div className="flex justify-center items-center py-12">
-                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600"></div>
-                        <span className="ml-3 text-gray-600">
-                            Đang tìm kiếm sân...
-                        </span>
+                {/* Main Content: Map + Court List */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[600px]">
+                    {/* Map Section */}
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                        <div className="h-full">
+                            <Map
+                                courts={courts}
+                                onCourtSelect={handleCourtSelect}
+                                selectedCourt={selectedCourt}
+                                userLocation={userLocation}
+                                zoomToCourt={
+                                    selectedCourt
+                                        ? {
+                                              lat: selectedCourt.latitude || 0,
+                                              lng: selectedCourt.longitude || 0,
+                                          }
+                                        : null
+                                }
+                            />
+                        </div>
                     </div>
-                )}
 
-                {/* Courts Grid */}
-                {!loading && (
-                    <>
-                        {courts.length > 0 ? (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-8">
-                                {courts.map((court) => (
-                                    <CourtCard key={court.id} court={court} />
-                                ))}
-                            </div>
-                        ) : (
-                            <div className="text-center py-12">
-                                <div className="text-6xl mb-4">🏟️</div>
-                                <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                                    Không tìm thấy sân nào
-                                </h3>
-                                <p className="text-gray-600 mb-4">
-                                    Hãy thử thay đổi bộ lọc hoặc từ khóa tìm
-                                    kiếm
-                                </p>
-                                <button
-                                    onClick={handleResetFilters}
-                                    className="bg-red-600 text-white px-6 py-3 rounded-xl font-medium hover:bg-red-700 transition-colors"
-                                >
-                                    Xóa bộ lọc
-                                </button>
-                            </div>
-                        )}
+                    {/* Court List Section */}
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex flex-col">
+                        {/* Header */}
+                        <div className="flex items-center justify-between mb-4">
+                            <h2 className="text-xl font-bold text-gray-900">
+                                Danh sách sân
+                            </h2>
+                            <span className="text-sm text-gray-500">
+                                {courts.length} kết quả
+                            </span>
+                        </div>
 
-                        {/* Pagination */}
-                        {totalPages > 1 && (
-                            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-                                <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                                    {/* Pagination Info */}
-                                    <div className="text-sm text-gray-600">
-                                        Trang{" "}
-                                        <span className="font-semibold text-gray-900">
-                                            {searchParams.page! + 1}
-                                        </span>{" "}
-                                        trong tổng số{" "}
-                                        <span className="font-semibold text-gray-900">
-                                            {totalPages}
-                                        </span>{" "}
-                                        trang
-                                    </div>
-
-                                    {/* Pagination Controls */}
-                                    <div className="flex items-center gap-2">
-                                        <button
-                                            onClick={() =>
-                                                handlePageChange(
-                                                    Math.max(
-                                                        0,
-                                                        searchParams.page! - 1
-                                                    )
-                                                )
-                                            }
-                                            disabled={searchParams.page === 0}
-                                            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                        >
-                                            <svg
-                                                className="w-4 h-4"
-                                                fill="none"
-                                                stroke="currentColor"
-                                                viewBox="0 0 24 24"
-                                            >
-                                                <path
-                                                    strokeLinecap="round"
-                                                    strokeLinejoin="round"
-                                                    strokeWidth={2}
-                                                    d="M15 19l-7-7 7-7"
-                                                />
-                                            </svg>
-                                            Trước
-                                        </button>
-
-                                        {/* Page Numbers */}
-                                        <div className="flex gap-1">
-                                            {Array.from(
-                                                {
-                                                    length: Math.min(
-                                                        5,
-                                                        totalPages
-                                                    ),
-                                                },
-                                                (_, index) => {
-                                                    let pageNum;
-                                                    if (totalPages <= 5) {
-                                                        pageNum = index;
-                                                    } else if (
-                                                        searchParams.page! < 3
-                                                    ) {
-                                                        pageNum = index;
-                                                    } else if (
-                                                        searchParams.page! >
-                                                        totalPages - 4
-                                                    ) {
-                                                        pageNum =
-                                                            totalPages -
-                                                            5 +
-                                                            index;
-                                                    } else {
-                                                        pageNum =
-                                                            searchParams.page! -
-                                                            2 +
-                                                            index;
-                                                    }
-
-                                                    return (
-                                                        <button
-                                                            key={pageNum}
-                                                            onClick={() =>
-                                                                handlePageChange(
-                                                                    pageNum
-                                                                )
-                                                            }
-                                                            className={`px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
-                                                                searchParams.page ===
-                                                                pageNum
-                                                                    ? "bg-red-600 text-white"
-                                                                    : "text-gray-700 bg-white border border-gray-300 hover:bg-gray-50"
-                                                            }`}
-                                                        >
-                                                            {pageNum + 1}
-                                                        </button>
-                                                    );
-                                                }
-                                            )}
-                                        </div>
-
-                                        <button
-                                            onClick={() =>
-                                                handlePageChange(
-                                                    Math.min(
-                                                        totalPages - 1,
-                                                        searchParams.page! + 1
-                                                    )
-                                                )
-                                            }
-                                            disabled={
-                                                searchParams.page ===
-                                                totalPages - 1
-                                            }
-                                            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                        >
-                                            Sau
-                                            <svg
-                                                className="w-4 h-4"
-                                                fill="none"
-                                                stroke="currentColor"
-                                                viewBox="0 0 24 24"
-                                            >
-                                                <path
-                                                    strokeLinecap="round"
-                                                    strokeLinejoin="round"
-                                                    strokeWidth={2}
-                                                    d="M9 5l7 7-7 7"
-                                                />
-                                            </svg>
-                                        </button>
-                                    </div>
+                        {/* Loading State */}
+                        {loading && (
+                            <div className="flex-1 flex justify-center items-center">
+                                <div className="flex items-center gap-3">
+                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div>
+                                    <span className="text-gray-600">
+                                        Đang tìm kiếm sân...
+                                    </span>
                                 </div>
                             </div>
                         )}
-                    </>
-                )}
 
-                {/* Quick Actions */}
-                <div className="mt-12 bg-gradient-to-r from-red-600 to-red-700 rounded-2xl p-8 text-white">
-                    <div className="text-center">
-                        <h3 className="text-2xl font-bold mb-4">
-                            Không tìm thấy sân phù hợp?
-                        </h3>
-                        <p className="text-lg mb-6 opacity-90">
-                            Hãy thử những gợi ý sau để tìm kiếm tốt hơn
-                        </p>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div className="bg-white bg-opacity-20 rounded-xl p-4">
-                                <div className="text-3xl mb-2">🔍</div>
-                                <h4 className="font-semibold mb-1">
-                                    Mở rộng tìm kiếm
-                                </h4>
-                                <p className="text-sm opacity-90">
-                                    Thử từ khóa khác hoặc bỏ bộ lọc
-                                </p>
+                        {/* Courts List */}
+                        {!loading && (
+                            <div className="flex-1 flex flex-col">
+                                {courts.length > 0 ? (
+                                    <>
+                                        <div className="flex-1 space-y-3 overflow-y-auto">
+                                            {courts.map((court) => (
+                                                <div
+                                                    key={court.id}
+                                                    className={`cursor-pointer transition-all duration-200 rounded-lg border-2 ${
+                                                        selectedCourt?.id ===
+                                                        court.id
+                                                            ? "border-red-500 bg-red-50"
+                                                            : "border-transparent hover:border-gray-200 hover:bg-gray-50"
+                                                    }`}
+                                                    onClick={() =>
+                                                        handleCourtSelect(court)
+                                                    }
+                                                >
+                                                    <CourtCard court={court} />
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        {/* Pagination */}
+                                        {totalPages > 1 && (
+                                            <div className="mt-4 pt-4 border-t border-gray-200">
+                                                <div className="flex items-center justify-between">
+                                                    <div className="text-xs text-gray-600">
+                                                        Trang{" "}
+                                                        {searchParams.page! + 1}{" "}
+                                                        / {totalPages}
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <button
+                                                            onClick={() =>
+                                                                handlePageChange(
+                                                                    Math.max(
+                                                                        0,
+                                                                        searchParams.page! -
+                                                                            1
+                                                                    )
+                                                                )
+                                                            }
+                                                            disabled={
+                                                                searchParams.page ===
+                                                                0
+                                                            }
+                                                            className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed rounded-md transition-colors"
+                                                        >
+                                                            ‹
+                                                        </button>
+                                                        <span className="text-sm text-gray-700">
+                                                            {searchParams.page! +
+                                                                1}
+                                                        </span>
+                                                        <button
+                                                            onClick={() =>
+                                                                handlePageChange(
+                                                                    Math.min(
+                                                                        totalPages -
+                                                                            1,
+                                                                        searchParams.page! +
+                                                                            1
+                                                                    )
+                                                                )
+                                                            }
+                                                            disabled={
+                                                                searchParams.page ===
+                                                                totalPages - 1
+                                                            }
+                                                            className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed rounded-md transition-colors"
+                                                        >
+                                                            ›
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </>
+                                ) : (
+                                    <div className="flex-1 flex flex-col justify-center items-center text-center">
+                                        <div className="text-4xl mb-3">🏟️</div>
+                                        <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                                            Không tìm thấy sân nào
+                                        </h3>
+                                        <p className="text-gray-600 mb-4 text-sm">
+                                            Hãy thử thay đổi bộ lọc hoặc từ khóa
+                                            tìm kiếm
+                                        </p>
+                                        <button
+                                            onClick={handleResetFilters}
+                                            className="bg-red-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-red-700 transition-colors text-sm"
+                                        >
+                                            Xóa bộ lọc
+                                        </button>
+                                    </div>
+                                )}
                             </div>
-                            <div className="bg-white bg-opacity-20 rounded-xl p-4">
-                                <div className="text-3xl mb-2">📍</div>
-                                <h4 className="font-semibold mb-1">
-                                    Tìm theo địa điểm
-                                </h4>
-                                <p className="text-sm opacity-90">
-                                    Tìm kiếm theo quận, phường gần bạn
-                                </p>
-                            </div>
-                            <div className="bg-white bg-opacity-20 rounded-xl p-4">
-                                <div className="text-3xl mb-2">⭐</div>
-                                <h4 className="font-semibold mb-1">
-                                    Giảm yêu cầu
-                                </h4>
-                                <p className="text-sm opacity-90">
-                                    Thử giảm mức đánh giá tối thiểu
-                                </p>
-                            </div>
-                        </div>
+                        )}
                     </div>
                 </div>
             </main>

@@ -46,12 +46,14 @@ export interface LoginRequest {
 }
 
 export interface RegisterRequest {
-    email: string;
-    password: string;
+    username: string;
     fullName: string;
+    email: string;
     phone: string;
-    dateOfBirth: string;
-    gender: "MALE" | "FEMALE" | "OTHER";
+    password: string;
+    confirmPassword: string;
+    dateOfBirth?: string;
+    gender?: "MALE" | "FEMALE" | "OTHER";
 }
 
 export interface AuthResponse {
@@ -78,6 +80,8 @@ export interface Court {
     averageRating?: number;
     totalReviews?: number;
     status: "ACTIVE" | "INACTIVE" | "MAINTENANCE";
+    distance?: number; // km from user location
+    price?: number; // minimum price in VND
     createdAt?: string;
     updatedAt?: string;
 }
@@ -100,6 +104,9 @@ export interface CourtSearchParams {
     keyword?: string;
     sportType?: string;
     minRating?: number;
+    latitude?: number;
+    longitude?: number;
+    radiusKm?: number;
     page?: number;
     size?: number;
 }
@@ -121,7 +128,9 @@ export interface TeamPost {
     maxPlayers: number;
     currentPlayers: number;
     skillLevel?: string;
+    sportType: "BADMINTON" | "PICKLEBALL";
     status: "OPEN" | "CLOSED" | "CANCELLED";
+    images?: string[];
     isFull: boolean;
     canJoin: boolean;
     availableSlots: number;
@@ -132,10 +141,12 @@ export interface TeamPost {
 export interface CreateTeamPostRequest {
     title: string;
     description: string;
-    playDate: string;
+    playDate: string; // Will be converted to LocalDateTime in service
     location: string;
     maxPlayers: number;
     skillLevel?: string;
+    sportType: string; // "BADMINTON" | "PICKLEBALL"
+    images?: string[];
 }
 
 export interface TeamPostSearchParams {

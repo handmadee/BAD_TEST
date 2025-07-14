@@ -56,7 +56,7 @@ public class User extends BaseEntity {
     private Gender gender;
     
     @Column(name = "avatar_url", length = 500)
-    private String profileImage;
+    private String avatarUrl;
     
     @Column(columnDefinition = "TEXT")
     private String bio;
@@ -67,9 +67,9 @@ public class User extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "skill_level", length = 20)
     @Builder.Default
-    private SkillLevel skillLevel = SkillLevel.BEGINNER;
+    private SkillLevel skillLevel = SkillLevel.WEAK;
     
-    @Column(name = "preferred_sports", length = 50)
+    @Column(name = "preferred_sports", columnDefinition = "SET('BADMINTON', 'PICKLEBALL')")
     @Builder.Default
     private String preferredSports = "BADMINTON";
     
@@ -121,7 +121,7 @@ public class User extends BaseEntity {
     }
 
     public enum SkillLevel {
-        BEGINNER, INTERMEDIATE, ADVANCED, PROFESSIONAL
+        WEAK, AVERAGE, GOOD, EXCELLENT
     }
 
     public enum UserRole {

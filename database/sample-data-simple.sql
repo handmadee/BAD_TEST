@@ -35,14 +35,63 @@ INSERT INTO court_owners (user_id, business_name, business_phone, business_email
 -- =====================================================
 -- 3. COURTS DATA
 -- =====================================================
-INSERT INTO courts (owner_id, name, description, address, city, district, sport_types, total_courts, opening_time, closing_time, phone, email, facebook_url, amenities, images, cover_image, status, featured) VALUES
-(1, 'Sân Cầu Lông Thảo Chi', 'Sân cầu lông chuyên nghiệp với đầy đủ tiện nghi', '123 Nguyễn Văn Thoại, Ngũ Hành Sơn, Đà Nẵng', 'Đà Nẵng', 'Ngũ Hành Sơn', 'BADMINTON', 6, '06:00:00', '22:00:00', '0901234567', 'sancaulongthaochi@gmail.com', 'https://facebook.com/sancaulongthaochi', '["Điều hòa", "Wifi miễn phí", "Đồ uống", "Bãi đỗ xe"]', '["/courts/court1.jpg", "/courts/court2.jpg"]', '/courts/court1.jpg', 'ACTIVE', true),
-
-(2, 'Sân Pickleball Modern', 'Sân pickleball hiện đại với hệ thống âm thanh chuyên nghiệp', '456 Hùng Vương, Hải Châu, Đà Nẵng', 'Đà Nẵng', 'Hải Châu', 'PICKLEBALL', 4, '05:30:00', '23:00:00', '0907654321', 'pickleballmodern@gmail.com', 'https://facebook.com/pickleballmodern', '["Điều hòa", "Âm thanh", "Bãi đỗ xe", "Căn tin"]', '["/courts/court2.jpg"]', '/courts/court2.jpg', 'ACTIVE', true),
-
-(2, 'Sân Dragon Sports', 'Sân thể thao đa năng tại trung tâm Đà Nẵng', '789 Lê Duẩn, Hải Châu, Đà Nẵng', 'Đà Nẵng', 'Hải Châu', 'BADMINTON,PICKLEBALL', 8, '05:00:00', '23:00:00', '0912345678', 'dragon@gmail.com', 'https://facebook.com/dragonsports', '["Điều hòa", "Wifi", "Phòng thay đồ", "Căn tin"]', '["/courts/court1.jpg"]', '/courts/court1.jpg', 'ACTIVE', false),
-
-(3, 'Nam Sports Hà Nội', 'Khu liên hợp thể thao hiện đại tại Hà Nội', '789 Giải Phóng, Đống Đa, Hà Nội', 'Hà Nội', 'Đống Đa', 'BADMINTON,PICKLEBALL', 10, '05:30:00', '23:30:00', '0956789012', 'hanoi@namsports.vn', 'https://facebook.com/namsportshanoi', '["Điều hòa cao cấp", "Wifi", "Phòng VIP", "Bãi đỗ xe rộng"]', '["/courts/court1.jpg", "/courts/court2.jpg"]', '/courts/court1.jpg', 'ACTIVE', true);
+INSERT INTO courts (
+    owner_id, name, description, address, city, district, 
+    latitude, longitude, sport_types, total_courts,
+    opening_time, closing_time, phone, email, facebook_url,
+    amenities, average_rating, total_reviews, status, featured,
+    images, cover_image
+) VALUES 
+(
+    1, 'Sân Cầu Lông Hoàng Gia', 
+    'Sân cầu lông cao cấp với trang thiết bị hiện đại, sàn gỗ chuẩn quốc tế.',
+    '123 Lê Lợi, Phường Bến Nghé, Quận 1, TP.HCM', 'TP.HCM', 'Quận 1',
+    10.7622700, 106.6607200, 'BADMINTON', 8,
+    '06:00:00', '23:00:00', '0901234567', 'hoanggia@badminton.vn', 'https://facebook.com/hoanggia',
+    '["Điều hòa", "Wifi miễn phí", "Căn tin", "Bãi xe miễn phí", "Phòng thay đồ"]',
+    4.7, 156, 'ACTIVE', true,
+    '["court1.jpg", "court2.jpg"]', 'court1.jpg'
+),
+(
+    2, 'Sân Cầu Lông Sài Gòn Sports', 
+    'Sân cầu lông và pickleball chất lượng cao, phục vụ 24/7.',
+    '456 Nguyễn Văn Cừ, Phường Nguyễn Cư Trinh, Quận 1, TP.HCM', 'TP.HCM', 'Quận 1', 
+    10.7644400, 106.6835500, 'BADMINTON,PICKLEBALL', 12,
+    '00:00:00', '23:59:59', '0907654321', 'contact@sgnsports.vn', 'https://facebook.com/sgnsports',
+    '["Điều hòa", "Wifi miễn phí", "Căn tin", "Bãi xe", "Phòng thay đồ", "Dịch vụ giặt ủi"]',
+    4.5, 203, 'ACTIVE', true,
+    '["court3.jpg", "court4.jpg"]', 'court3.jpg'
+),
+(
+    1, 'Sân Cầu Lông Quận 3', 
+    'Sân cầu lông giá rẻ, phù hợp với mọi lứa tuổi.',
+    '789 Võ Văn Tần, Phường 6, Quận 3, TP.HCM', 'TP.HCM', 'Quận 3',
+    10.7855600, 106.6891700, 'BADMINTON', 6,
+    '05:30:00', '22:30:00', '0912345678', 'quan3@badminton.vn', NULL,
+    '["Wifi miễn phí", "Bãi xe", "Nước uống"]',
+    4.2, 89, 'ACTIVE', false,
+    '["court5.jpg"]', 'court5.jpg'
+),
+(
+    3, 'Elite Badminton Club', 
+    'Câu lạc bộ cầu lông cao cấp với huấn luyện viên chuyên nghiệp.',
+    '321 Pasteur, Phường 6, Quận 3, TP.HCM', 'TP.HCM', 'Quận 3',
+    10.7755500, 106.6955500, 'BADMINTON', 4,
+    '06:00:00', '22:00:00', '0923456789', 'elite@club.vn', 'https://facebook.com/eliteclub',
+    '["Điều hòa", "Wifi miễn phí", "Huấn luyện viên", "Phòng thay đồ VIP", "Spa"]',
+    4.9, 78, 'ACTIVE', true,
+    '["court6.jpg", "court7.jpg"]', 'court6.jpg'
+),
+(
+    2, 'Sân Pickleball Thủ Đức', 
+    'Sân pickleball chuyên nghiệp tại khu vực Thủ Đức.',
+    '147 Võ Văn Ngân, Phường Linh Chiểu, TP.Thủ Đức, TP.HCM', 'TP.HCM', 'TP.Thủ Đức',
+    10.8476700, 106.7645300, 'PICKLEBALL', 10,
+    '05:00:00', '23:00:00', '0934567890', 'thuduc@pickleball.vn', NULL,
+    '["Điều hòa", "Wifi miễn phí", "Căn tin", "Bãi xe rộng"]',
+    4.3, 45, 'ACTIVE', false,
+    '["court8.jpg"]', 'court8.jpg'
+);
 
 -- =====================================================
 -- 4. COURT PRICING DATA (Simplified)

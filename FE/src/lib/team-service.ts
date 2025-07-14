@@ -124,6 +124,26 @@ export class TeamService {
     }
 
     /**
+     * Gửi tin nhắn và yêu cầu tham gia đội
+     */
+    async sendMessageAndJoinRequest(
+        id: number,
+        message: string
+    ): Promise<ApiResponse<TeamMember>> {
+        try {
+            const params = new URLSearchParams();
+            params.append("message", message);
+
+            return await apiClient.post<TeamMember>(
+                `/team-posts/${id}/message-and-join?${params.toString()}`
+            );
+        } catch (error) {
+            console.error("Send message and join request error:", error);
+            throw error;
+        }
+    }
+
+    /**
      * Rời khỏi đội
      */
     async leaveTeam(id: number): Promise<ApiResponse<void>> {
@@ -157,7 +177,7 @@ export class TeamService {
         memberId: number
     ): Promise<ApiResponse<TeamMember>> {
         try {
-            return await apiClient.patch<TeamMember>(
+            return await apiClient.post<TeamMember>(
                 `/team-posts/${postId}/members/${memberId}/accept`
             );
         } catch (error) {
@@ -174,7 +194,7 @@ export class TeamService {
         memberId: number
     ): Promise<ApiResponse<void>> {
         try {
-            return await apiClient.patch<void>(
+            return await apiClient.post<void>(
                 `/team-posts/${postId}/members/${memberId}/reject`
             );
         } catch (error) {
@@ -205,7 +225,7 @@ export class TeamService {
      */
     async updateTeamPostStatus(
         id: number,
-        status: "OPEN" | "CLOSED"
+        status: "ACTIVE" | "FULL" | "CANCELLED" | "COMPLETED"
     ): Promise<ApiResponse<TeamPost>> {
         try {
             return await apiClient.patch<TeamPost>(`/team-posts/${id}/status`, {
@@ -227,15 +247,13 @@ export class TeamService {
         } = {}
     ): Promise<ApiResponse<PaginatedResponse<TeamPost>>> {
         try {
-            const defaultParams = {
-                page: 0,
-                size: 20,
-                ...params,
-            };
+            const searchParams = new URLSearchParams({
+                page: (params.page || 0).toString(),
+                size: (params.size || 20).toString(),
+            });
 
             return await apiClient.get<PaginatedResponse<TeamPost>>(
-                "/team-posts/my-posts",
-                defaultParams
+                `/team-posts/my-posts?${searchParams}`
             );
         } catch (error) {
             console.error("Get my team posts error:", error);
@@ -253,15 +271,13 @@ export class TeamService {
         } = {}
     ): Promise<ApiResponse<PaginatedResponse<TeamPost>>> {
         try {
-            const defaultParams = {
-                page: 0,
-                size: 20,
-                ...params,
-            };
+            const searchParams = new URLSearchParams({
+                page: (params.page || 0).toString(),
+                size: (params.size || 20).toString(),
+            });
 
             return await apiClient.get<PaginatedResponse<TeamPost>>(
-                "/team-posts/joined",
-                defaultParams
+                `/team-posts/joined-teams?${searchParams}`
             );
         } catch (error) {
             console.error("Get joined teams error:", error);
@@ -333,5 +349,11 @@ export const createTeamPost = (postData: CreateTeamPostRequest) =>
     teamService.createTeamPost(postData);
 
 export const joinTeam = (id: number) => teamService.joinTeam(id);
+export const sendMessageAndJoinRequest = (id: number, message: string) =>
+    teamService.sendMessageAndJoinRequest(id, message);
 
 export const getTeamMembers = (id: number) => teamService.getTeamMembers(id);
+export const getMyTeamPosts = (params?: { page?: number; size?: number }) =>
+    teamService.getMyTeamPosts(params);
+export const getJoinedTeams = (params?: { page?: number; size?: number }) =>
+    teamService.getJoinedTeams(params);

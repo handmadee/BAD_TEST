@@ -235,6 +235,10 @@ FE/out/
 BE/target/
 BE/build/
 
+# Backend uploads folder - ignore files but keep folder structure
+BE/uploads/*
+!BE/uploads/.gitkeep
+
 # Documentation generated files
 docs/build/
 docs/dist/ 

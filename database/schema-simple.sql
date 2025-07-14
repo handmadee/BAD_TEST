@@ -25,7 +25,7 @@ CREATE TABLE users (
     avatar_url VARCHAR(500),
     bio TEXT,
     location VARCHAR(255),
-    skill_level ENUM('BEGINNER', 'INTERMEDIATE', 'ADVANCED', 'PROFESSIONAL') DEFAULT 'BEGINNER',
+    skill_level ENUM('WEAK', 'AVERAGE', 'GOOD', 'EXCELLENT') DEFAULT 'WEAK',
     preferred_sports SET('BADMINTON', 'PICKLEBALL') DEFAULT 'BADMINTON',
     
     -- Authentication
@@ -82,51 +82,39 @@ CREATE TABLE court_owners (
 -- 3. BẢNG COURTS - THÔNG TIN SÂN
 -- =====================================================
 CREATE TABLE courts (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
     owner_id BIGINT NOT NULL,
     name VARCHAR(255) NOT NULL,
     description TEXT,
-    
-    -- Location
     address TEXT NOT NULL,
     city VARCHAR(100),
     district VARCHAR(100),
-    
-    -- Court details
-    sport_types SET('BADMINTON', 'PICKLEBALL', 'TENNIS') NOT NULL,
-    total_courts TINYINT NOT NULL DEFAULT 1,
-    
-    -- Operating hours
+    latitude DECIMAL(10,8),
+    longitude DECIMAL(11,8),
+    sport_types SET('BADMINTON', 'PICKLEBALL') NOT NULL DEFAULT 'BADMINTON',
+    total_courts INT NOT NULL DEFAULT 1,
     opening_time TIME DEFAULT '06:00:00',
     closing_time TIME DEFAULT '22:00:00',
-    
-    -- Contact
     phone VARCHAR(20),
     email VARCHAR(255),
     facebook_url VARCHAR(255),
-    
-    -- Amenities (JSON cho flexibility)
     amenities JSON,
-    
-    -- Ratings
     average_rating DECIMAL(3,2) DEFAULT 0.00,
     total_reviews INT DEFAULT 0,
-    
-    -- Status
-    status ENUM('ACTIVE', 'INACTIVE') DEFAULT 'ACTIVE',
-    featured BOOLEAN DEFAULT FALSE,
-    
-    -- Images
+    status ENUM('ACTIVE', 'INACTIVE') NOT NULL DEFAULT 'ACTIVE',
+    featured BOOLEAN NOT NULL DEFAULT FALSE,
     images JSON,
     cover_image VARCHAR(500),
-    
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     
-    FOREIGN KEY (owner_id) REFERENCES court_owners(id) ON DELETE CASCADE,
     INDEX idx_owner_id (owner_id),
-    INDEX idx_city_sport (city, sport_types),
-    INDEX idx_status_featured (status, featured)
+    INDEX idx_status (status),
+    INDEX idx_sport_types (sport_types),
+    INDEX idx_location (latitude, longitude),
+    INDEX idx_city_district (city, district),
+    
+    FOREIGN KEY (owner_id) REFERENCES court_owners(id) ON DELETE CASCADE
 );
 
 -- =====================================================
@@ -160,56 +148,28 @@ CREATE TABLE court_pricing (
 -- 5. BẢNG BOOKINGS - ĐẶT SÂN (VietQR Only)
 -- =====================================================
 CREATE TABLE bookings (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
     user_id BIGINT NOT NULL,
     court_id BIGINT NOT NULL,
-    
-    -- Booking details
     booking_date DATE NOT NULL,
     start_time TIME NOT NULL,
     end_time TIME NOT NULL,
-    sport_type ENUM('BADMINTON', 'PICKLEBALL', 'TENNIS') NOT NULL,
-    court_number TINYINT,
-    
-    -- Pricing
-    total_hours DECIMAL(3,1) NOT NULL,
-    price_per_hour DECIMAL(10,2) NOT NULL,
     total_amount DECIMAL(10,2) NOT NULL,
-    final_amount DECIMAL(10,2) NOT NULL,
-    
-    -- Description for VietQR/Casso matching (REQUIRED)
-    description VARCHAR(255) NOT NULL, -- Format: "Thanh toan san {court.name} - {hours}h"
-    
-    -- Payment (VietQR ONLY)
-    payment_status ENUM('PENDING', 'PAID', 'FAILED', 'CANCELLED') DEFAULT 'PENDING',
-    payment_method ENUM('VIETQR') DEFAULT 'VIETQR', -- Chỉ VietQR
-    transaction_id VARCHAR(50), -- Mã giao dịch từ Casso
-    qr_url VARCHAR(255), -- URL mã QR VietQR
-    
-    -- Status
-    status ENUM('CONFIRMED', 'PENDING', 'CANCELLED', 'COMPLETED') DEFAULT 'PENDING',
-    
-    -- Additional info
+    status ENUM('PENDING', 'CONFIRMED', 'CANCELLED', 'COMPLETED') NOT NULL DEFAULT 'PENDING',
+    vietqr_url TEXT,
+    booking_reference VARCHAR(50) UNIQUE,
     notes TEXT,
-    confirmation_code VARCHAR(20) UNIQUE,
-    
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     
+    INDEX idx_user_id (user_id),
+    INDEX idx_court_id (court_id),
+    INDEX idx_booking_date (booking_date),
+    INDEX idx_status (status),
+    INDEX idx_booking_reference (booking_reference),
+    
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (court_id) REFERENCES courts(id) ON DELETE CASCADE,
-    
-    -- Constraint để đảm bảo thời gian hợp lệ
-    CHECK (start_time < end_time),
-    CHECK (total_amount > 0),
-    CHECK (final_amount > 0),
-    
-    -- Index cho performance
-    INDEX idx_court_time (court_id, booking_date, start_time, end_time),
-    INDEX idx_user_bookings (user_id, booking_date DESC),
-    INDEX idx_description (description),
-    INDEX idx_transaction_id (transaction_id),
-    INDEX idx_payment_status (payment_status)
+    FOREIGN KEY (court_id) REFERENCES courts(id) ON DELETE CASCADE
 );
 
 -- =====================================================
@@ -217,28 +177,31 @@ CREATE TABLE bookings (
 -- =====================================================
 CREATE TABLE transactions (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
-    booking_id BIGINT, -- Có thể NULL nếu không khớp với booking nào
-    owner_id BIGINT NOT NULL, -- Chủ sân nhận tiền
+    booking_id BIGINT,
     
-    -- Transaction details from Casso webhook
-    amount INT NOT NULL CHECK (amount > 0),
-    description VARCHAR(255) NOT NULL, -- Format: "Thanh toan san {court.name} - {hours}h"
-    transaction_id VARCHAR(50) UNIQUE NOT NULL, -- Mã giao dịch Casso
-    bank_name VARCHAR(50), -- Tên ngân hàng
-    account_number VARCHAR(50), -- Số tài khoản thụ hưởng
-    transaction_date DATETIME, -- Thời gian giao dịch
+    -- Transaction details
+    transaction_id VARCHAR(100) UNIQUE NOT NULL,
+    amount DECIMAL(15,2) NOT NULL,
+    description TEXT NOT NULL,
+    bank_account VARCHAR(50) NOT NULL,
+    bank_name VARCHAR(100),
+    transaction_date DATETIME NOT NULL,
     
-    -- Status
-    status VARCHAR(20) DEFAULT 'success', -- "success" hoặc "failure"
+    -- Transaction type and status (enums)
+    type ENUM('CREDIT', 'DEBIT') DEFAULT 'CREDIT',
+    status ENUM('PENDING', 'PROCESSED', 'FAILED', 'CANCELLED') DEFAULT 'PENDING',
     
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    -- Additional fields
+    casso_id VARCHAR(50),
+    webhook_data TEXT,
+    
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     
     FOREIGN KEY (booking_id) REFERENCES bookings(id) ON DELETE SET NULL,
-    FOREIGN KEY (owner_id) REFERENCES court_owners(id) ON DELETE CASCADE,
     
-    INDEX idx_owner_date (owner_id, transaction_date),
-    INDEX idx_account_number (account_number),
-    INDEX idx_description_amount (description, amount),
+    INDEX idx_transaction_id (transaction_id),
+    INDEX idx_bank_account (bank_account),
     INDEX idx_booking_id (booking_id)
 );
 
@@ -247,40 +210,32 @@ CREATE TABLE transactions (
 -- =====================================================
 CREATE TABLE team_posts (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
-    author_id BIGINT NOT NULL,
-    court_id BIGINT,
+    user_id BIGINT NOT NULL,
     
     -- Post content
     title VARCHAR(255) NOT NULL,
-    content TEXT NOT NULL,
-    sport_type ENUM('BADMINTON', 'PICKLEBALL', 'TENNIS') NOT NULL,
-    skill_level ENUM('BEGINNER', 'INTERMEDIATE', 'ADVANCED', 'MIXED'),
+    description TEXT,
+    sport_type ENUM('BADMINTON', 'PICKLEBALL') NOT NULL,
+    skill_level VARCHAR(20),
     
     -- Game details
-    play_date DATE NOT NULL,
-    start_time TIME NOT NULL,
-    end_time TIME,
-    custom_location VARCHAR(255), -- Khi không chọn sân có sẵn
+    play_date DATETIME NOT NULL,
+    location VARCHAR(500),
     
     -- Player requirements
-    needed_players TINYINT NOT NULL,
+    max_players TINYINT NOT NULL,
     current_players TINYINT DEFAULT 1,
-    max_players TINYINT,
     
-    -- Cost
-    cost_per_person DECIMAL(10,2),
-    
-    -- Status
+    -- Status and images
     status ENUM('ACTIVE', 'FULL', 'CANCELLED', 'COMPLETED') DEFAULT 'ACTIVE',
+    images TEXT, -- JSON string of image URLs
     
-    expires_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     
-    FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (court_id) REFERENCES courts(id) ON DELETE SET NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     
-    INDEX idx_author_id (author_id),
+    INDEX idx_user_id (user_id),
     INDEX idx_sport_date (sport_type, play_date),
     INDEX idx_status_date (status, play_date)
 );
@@ -290,25 +245,21 @@ CREATE TABLE team_posts (
 -- =====================================================
 CREATE TABLE team_members (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
-    post_id BIGINT NOT NULL,
+    team_post_id BIGINT NOT NULL,
     user_id BIGINT NOT NULL,
     
-    -- Member status
-    status ENUM('REQUESTED', 'APPROVED', 'REJECTED', 'LEFT') DEFAULT 'REQUESTED',
-    role ENUM('ORGANIZER', 'MEMBER') DEFAULT 'MEMBER',
+    -- Member status - match with entity enum
+    status ENUM('PENDING', 'ACCEPTED', 'REJECTED') DEFAULT 'PENDING',
     
-    -- Join details
-    join_message TEXT,
-    approved_at TIMESTAMP NULL,
+    -- BaseEntity fields
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     
-    joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    left_at TIMESTAMP NULL,
-    
-    FOREIGN KEY (post_id) REFERENCES team_posts(id) ON DELETE CASCADE,
+    FOREIGN KEY (team_post_id) REFERENCES team_posts(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     
-    UNIQUE KEY uk_post_user (post_id, user_id),
-    INDEX idx_post_status (post_id, status),
+    UNIQUE KEY uk_post_user (team_post_id, user_id),
+    INDEX idx_post_status (team_post_id, status),
     INDEX idx_user_id (user_id)
 );
 
@@ -330,7 +281,7 @@ CREATE TABLE reviews (
     
     -- Review metadata
     visit_date DATE,
-    sport_played ENUM('BADMINTON', 'PICKLEBALL', 'TENNIS'),
+    sport_played ENUM('BADMINTON', 'PICKLEBALL'),
     would_recommend BOOLEAN,
     
     -- Images
@@ -428,6 +379,7 @@ CREATE TABLE user_favorites (
     court_id BIGINT NOT NULL,
     
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (court_id) REFERENCES courts(id) ON DELETE CASCADE,
@@ -516,19 +468,43 @@ BEGIN
 END//
 
 -- Update team post current players
-CREATE TRIGGER update_team_players 
+CREATE TRIGGER update_team_players_insert 
 AFTER INSERT ON team_members 
 FOR EACH ROW
 BEGIN
-    IF NEW.status = 'APPROVED' THEN
-        UPDATE team_posts 
-        SET current_players = (
-            SELECT COUNT(*) 
-            FROM team_members 
-            WHERE post_id = NEW.post_id AND status = 'APPROVED'
-        )
-        WHERE id = NEW.post_id;
-    END IF;
+    UPDATE team_posts 
+    SET current_players = (
+        SELECT COUNT(*) 
+        FROM team_members 
+        WHERE team_post_id = NEW.team_post_id AND status = 'ACCEPTED'
+    )
+    WHERE id = NEW.team_post_id;
+END//
+
+CREATE TRIGGER update_team_players_update 
+AFTER UPDATE ON team_members 
+FOR EACH ROW
+BEGIN
+    UPDATE team_posts 
+    SET current_players = (
+        SELECT COUNT(*) 
+        FROM team_members 
+        WHERE team_post_id = NEW.team_post_id AND status = 'ACCEPTED'
+    )
+    WHERE id = NEW.team_post_id;
+END//
+
+CREATE TRIGGER update_team_players_delete 
+AFTER DELETE ON team_members 
+FOR EACH ROW
+BEGIN
+    UPDATE team_posts 
+    SET current_players = (
+        SELECT COUNT(*) 
+        FROM team_members 
+        WHERE team_post_id = OLD.team_post_id AND status = 'ACCEPTED'
+    )
+    WHERE id = OLD.team_post_id;
 END//
 
 DELIMITER ;
@@ -560,67 +536,16 @@ BEGIN
     ORDER BY c.featured DESC, c.average_rating DESC;
 END//
 
--- Procedure để xử lý webhook từ Casso
-CREATE PROCEDURE ProcessCassoWebhook(
-    IN p_amount INT,
-    IN p_description VARCHAR(255),
-    IN p_transaction_id VARCHAR(50),
-    IN p_bank_name VARCHAR(50),
-    IN p_account_number VARCHAR(50),
-    IN p_transaction_date DATETIME
+-- Simple procedure example (can be customized later)
+CREATE PROCEDURE GetBookingsByUser(
+    IN p_user_id BIGINT
 )
 BEGIN
-    DECLARE v_booking_id BIGINT DEFAULT NULL;
-    DECLARE v_owner_id BIGINT DEFAULT NULL;
-    DECLARE v_exit_code INT DEFAULT 0;
-    
-    -- Tìm owner_id từ account_number
-    SELECT id INTO v_owner_id 
-    FROM court_owners 
-    WHERE bank_account = p_account_number 
-    LIMIT 1;
-    
-    -- Nếu không tìm thấy owner
-    IF v_owner_id IS NULL THEN
-        SET v_exit_code = 1; -- Owner không tồn tại
-        -- Skip insert để tránh foreign key error
-        SELECT v_exit_code as status_code, NULL as booking_id, NULL as owner_id, 'Owner not found' as message;
-    ELSE
-        -- Tìm booking khớp với description và amount
-        SELECT b.id INTO v_booking_id
-        FROM bookings b
-        INNER JOIN courts c ON b.court_id = c.id
-        WHERE b.description = p_description 
-        AND b.final_amount = p_amount
-        AND b.payment_status = 'PENDING'
-        AND c.owner_id = v_owner_id
-        ORDER BY b.created_at DESC
-        LIMIT 1;
-        
-        -- Lưu transaction vào bảng transactions
-        INSERT INTO transactions (
-            booking_id, owner_id, amount, description, transaction_id,
-            bank_name, account_number, transaction_date, status
-        ) VALUES (
-            v_booking_id, v_owner_id, p_amount, p_description, p_transaction_id,
-            p_bank_name, p_account_number, p_transaction_date, 'success'
-        );
-        
-        -- Nếu tìm thấy booking khớp, cập nhật trạng thái
-        IF v_booking_id IS NOT NULL THEN
-            UPDATE bookings 
-            SET payment_status = 'PAID',
-                transaction_id = p_transaction_id,
-                status = 'CONFIRMED'
-            WHERE id = v_booking_id;
-            
-            SET v_exit_code = 0; -- Thành công
-            SELECT v_exit_code as status_code, v_booking_id as booking_id, v_owner_id as owner_id, 'Success' as message;
-        ELSE
-            SET v_exit_code = 2; -- Không tìm thấy booking khớp
-            SELECT v_exit_code as status_code, NULL as booking_id, v_owner_id as owner_id, 'Booking not found' as message;
-        END IF;
-    END IF;
+    SELECT b.*, c.name as court_name
+    FROM bookings b
+    INNER JOIN courts c ON b.court_id = c.id
+    WHERE b.user_id = p_user_id
+    ORDER BY b.booking_date DESC, b.start_time DESC;
 END//
 
 DELIMITER ;
@@ -667,25 +592,26 @@ SELECT
     u.email,
     u.skill_level,
     COUNT(b.id) as total_bookings,
-    COALESCE(SUM(b.final_amount), 0) as total_spent,
+    COALESCE(SUM(b.total_amount), 0) as total_spent,
     COUNT(tp.id) as total_team_posts
 FROM users u
-LEFT JOIN bookings b ON u.id = b.user_id AND b.payment_status = 'PAID'
-LEFT JOIN team_posts tp ON u.id = tp.author_id
+LEFT JOIN bookings b ON u.id = b.user_id AND b.status = 'CONFIRMED'
+LEFT JOIN team_posts tp ON u.id = tp.user_id
 GROUP BY u.id;
 
--- Booking revenue by owner
+-- Booking revenue by court owner (via bookings)
 CREATE VIEW owner_revenue AS
 SELECT 
     co.id as owner_id,
     co.business_name,
     co.bank_account,
-    COUNT(t.id) as total_transactions,
-    COALESCE(SUM(t.amount), 0) as total_revenue,
-    DATE(t.transaction_date) as transaction_date
+    COUNT(b.id) as total_bookings,
+    COALESCE(SUM(b.total_amount), 0) as total_revenue,
+    DATE(b.booking_date) as booking_date
 FROM court_owners co
-LEFT JOIN transactions t ON co.id = t.owner_id AND t.status = 'success'
-GROUP BY co.id, DATE(t.transaction_date);
+LEFT JOIN courts c ON co.id = c.owner_id
+LEFT JOIN bookings b ON c.id = b.court_id AND b.status = 'CONFIRMED'
+GROUP BY co.id, DATE(b.booking_date);
 
 -- =====================================================
 -- KẾT THÚC SCHEMA OPTIMIZED

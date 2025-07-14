@@ -53,3 +53,24 @@ export const getPriceRange = (
 
     return { min: min === Infinity ? 0 : min, max };
 };
+
+export * from "./distance";
+
+// Helper function để convert relative image URL thành full URL
+export const getFullImageUrl = (imagePath: string): string => {
+    if (!imagePath) return "";
+
+    if (imagePath.startsWith("http")) {
+        return imagePath; // Already full URL
+    }
+
+    // Base URL không có /api vì imagePath đã có /api
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || "http://localhost:8081";
+    return baseUrl + imagePath;
+};
+
+// Helper function để validate image URL
+export const isValidImageUrl = (url: string): boolean => {
+    if (!url) return false;
+    return /\.(jpg|jpeg|png|gif|webp)$/i.test(url);
+};

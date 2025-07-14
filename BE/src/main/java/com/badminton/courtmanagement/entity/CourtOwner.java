@@ -9,6 +9,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDateTime;
 import java.util.Set;
 
 @Entity
@@ -29,22 +30,21 @@ public class CourtOwner extends BaseEntity {
     @JoinColumn(name = "user_id", nullable = false, unique = true)
     private User user;
     
-    @NotBlank(message = "Tên doanh nghiệp không được để trống")
-    @Column(name = "business_name", nullable = false, length = 200)
+    @Column(name = "business_name", length = 255)
     private String businessName;
     
-    @Column(name = "business_license", length = 50)
-    private String businessLicense;
+    @Column(name = "business_phone", length = 20)
+    private String businessPhone;
     
-    @Column(name = "tax_code", length = 20)
-    private String taxCode;
+    @Column(name = "business_email", length = 255)
+    private String businessEmail;
     
-    @Column(length = 500)
-    private String address;
+    @Column(columnDefinition = "TEXT")
+    private String description;
     
     // Thông tin ngân hàng bắt buộc cho VietQR
     @NotBlank(message = "Tên ngân hàng không được để trống")
-    @Column(name = "bank_name", nullable = false, length = 100)
+    @Column(name = "bank_name", nullable = false, length = 50)
     private String bankName;
     
     @NotBlank(message = "Số tài khoản không được để trống")
@@ -52,24 +52,27 @@ public class CourtOwner extends BaseEntity {
     private String bankAccount;
     
     @NotBlank(message = "Mã BIN ngân hàng không được để trống")
-    @Column(name = "bank_bin", nullable = false, length = 10)
+    @Column(name = "bank_bin", nullable = false, length = 6)
     private String bankBin;
     
     @NotBlank(message = "Tên chủ tài khoản không được để trống")
-    @Column(name = "account_holder_name", nullable = false, length = 100)
+    @Column(name = "account_holder_name", nullable = false, length = 255)
     private String accountHolderName;
     
     @Builder.Default
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
-    private OwnerStatus status = OwnerStatus.PENDING;
+    @Column(name = "verification_status", nullable = false, length = 20)
+    private VerificationStatus verificationStatus = VerificationStatus.PENDING;
+    
+    @Column(name = "verified_at")
+    private LocalDateTime verifiedAt;
     
     // Relationships
     @OneToMany(mappedBy = "owner", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private Set<Court> courts;
     
     // Enums
-    public enum OwnerStatus {
-        PENDING, VERIFIED, SUSPENDED, REJECTED
+    public enum VerificationStatus {
+        PENDING, VERIFIED, REJECTED
     }
 } 

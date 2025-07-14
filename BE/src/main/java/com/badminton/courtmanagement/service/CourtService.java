@@ -17,6 +17,11 @@ public interface CourtService {
     CourtDto createCourt(CreateCourtRequest request);
     
     /**
+     * Tạo mới sân bởi admin (không cần court owner)
+     */
+    CourtDto createCourtAsAdmin(CreateCourtRequest request);
+    
+    /**
      * Cập nhật thông tin sân
      */
     CourtDto updateCourt(Long courtId, CreateCourtRequest request);

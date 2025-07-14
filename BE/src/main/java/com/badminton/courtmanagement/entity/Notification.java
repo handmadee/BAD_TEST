@@ -9,6 +9,8 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDateTime;
+
 @Entity
 @Table(name = "notifications")
 @Data
@@ -27,30 +29,40 @@ public class Notification extends BaseEntity {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
     
+    @NotNull
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 50)
+    private NotificationType type;
+    
     @NotBlank
-    @Column(nullable = false, length = 200)
+    @Column(nullable = false, length = 255)
     private String title;
     
     @NotBlank
     @Column(nullable = false, columnDefinition = "TEXT")
     private String content;
     
-    @Builder.Default
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
-    private NotificationType type = NotificationType.GENERAL;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "related_court_id")
+    private Court relatedCourt;
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "related_booking_id")
+    private Booking relatedBooking;
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "related_post_id")
+    private TeamPost relatedPost;
     
     @Builder.Default
     @Column(name = "is_read", nullable = false)
     private Boolean isRead = false;
     
-    @Column(name = "related_id")
-    private Long relatedId;
-    
-    @Column(name = "action_url")
-    private String actionUrl;
+    @Column(name = "read_at")
+    private LocalDateTime readAt;
     
     public enum NotificationType {
-        GENERAL, BOOKING, PAYMENT, TEAM, REVIEW, SYSTEM
+        BOOKING_CONFIRMED, BOOKING_CANCELLED, PAYMENT_SUCCESS, PAYMENT_FAILED,
+        TEAM_REQUEST, TEAM_APPROVED, NEW_MESSAGE, REVIEW_RECEIVED
     }
 } 
