@@ -11,6 +11,10 @@ export interface PaginatedResponse<T> {
     totalPages: number;
     number: number;
     size: number;
+    numberOfElements: number;
+    first: boolean;
+    last: boolean;
+    empty: boolean;
 }
 
 // User types
@@ -68,20 +72,26 @@ export interface Court {
     id: number;
     name: string;
     address: string;
+    city?: string;
+    district?: string;
     description?: string;
     phone?: string;
     email?: string;
+    facebookUrl?: string;
     operatingHours?: string;
     sportTypes?: string;
     amenities?: string;
     images?: string[];
+    coverImage?: string;
     latitude?: number;
     longitude?: number;
     averageRating?: number;
     totalReviews?: number;
     status: "ACTIVE" | "INACTIVE" | "MAINTENANCE";
+    featured?: boolean;
     distance?: number; // km from user location
-    price?: number; // minimum price in VND
+    price?: string; // price range as string
+    totalCourts?: number;
     createdAt?: string;
     updatedAt?: string;
 }
@@ -106,6 +116,7 @@ export interface CourtSearchParams {
     minRating?: number;
     latitude?: number;
     longitude?: number;
+    radius?: number;
     radiusKm?: number;
     page?: number;
     size?: number;

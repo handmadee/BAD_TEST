@@ -104,10 +104,10 @@ export default function Header() {
                             {/* Tên website to và đậm */}
                             <div className="flex flex-col">
                                 <span className="text-2xl font-bold text-red-600 leading-tight">
-                                    BadmintonApp
+                                    ZoneHub
                                 </span>
                                 <span className="text-sm text-gray-500 font-medium">
-                                    Đặt sân cầu lông
+                                    Đặt sân thể thao
                                 </span>
                             </div>
                         </Link>
