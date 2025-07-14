@@ -55,8 +55,36 @@ export function CourtCard({ court, onCardClick }: CourtCardProps) {
         return [];
     };
 
-    const statusDisplay = getStatusDisplay(court.status);
+    const getPriceRange = () => {
+        if (!court.pricing || court.pricing.length === 0) {
+            return "Liên hệ để biết giá";
+        }
+
+        const weekdayPrices = court.pricing.map((p) => p.weekdayPrice);
+        const weekendPrices = court.pricing.map((p) => p.weekendPrice);
+        const allPrices = [...weekdayPrices, ...weekendPrices];
+
+        const minPrice = Math.min(...allPrices);
+        const maxPrice = Math.max(...allPrices);
+
+        const formatPrice = (price: number) => {
+            return new Intl.NumberFormat("vi-VN", {
+                style: "currency",
+                currency: "VND",
+                minimumFractionDigits: 0,
+            }).format(price);
+        };
+
+        if (minPrice === maxPrice) {
+            return formatPrice(minPrice);
+        }
+
+        return `${formatPrice(minPrice)} - ${formatPrice(maxPrice)}`;
+    };
+
+    const statusDisplay = getStatusDisplay(court.status || "ACTIVE");
     const amenitiesList = getAmenitiesList();
+    const priceRange = getPriceRange();
 
     return (
         <Link href={`/courts/${court.id}`}>
@@ -84,7 +112,7 @@ export function CourtCard({ court, onCardClick }: CourtCardProps) {
                                 court.sportTypes || ""
                             )}`}
                         >
-                            {court.sportTypes}
+                            {court.sportTypes || "Không xác định"}
                         </span>
                     </div>
                     <div className="absolute top-3 left-3">
@@ -156,10 +184,17 @@ export function CourtCard({ court, onCardClick }: CourtCardProps) {
                         </div>
                     )}
 
-                    {/* Contact Info */}
+                    {/* Price Info */}
                     <div className="flex items-center justify-between mb-3">
-                        <div className="text-lg font-bold text-red-600">
-                            Liên hệ để biết giá
+                        <div className="flex flex-col">
+                            <div className="text-lg font-bold text-red-600">
+                                💰 {priceRange}
+                            </div>
+                            {court.pricing && court.pricing.length > 0 && (
+                                <div className="text-xs text-gray-500">
+                                    /giờ
+                                </div>
+                            )}
                         </div>
                         {court.email && (
                             <a
