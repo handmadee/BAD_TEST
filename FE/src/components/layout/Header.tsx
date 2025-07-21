@@ -62,10 +62,23 @@ export default function Header() {
             requireAuth: true,
         },
         {
+            href: "/wallet",
+            label: "💰 Ví của tôi",
+            isActive: pathname === "/wallet",
+            requireAuth: true,
+        },
+        {
             href: "/messages",
             label: "Chat",
             isActive: pathname === "/messages",
             requireAuth: true,
+        },
+        {
+            href: "/admin/payments",
+            label: "👨‍💼 Admin",
+            isActive: pathname === "/admin/payments",
+            requireAuth: true,
+            adminOnly: true,
         },
     ];
 
@@ -121,16 +134,20 @@ export default function Header() {
                                 return null;
                             }
 
+                            // Hide admin-only items if not admin
+                            if (item.adminOnly && (!user || user.role !== 'ADMIN')) {
+                                return null;
+                            }
+
                             return (
                                 <Link
                                     key={item.href}
                                     href={item.href}
                                     className={`
                                         px-6 py-3 rounded-xl font-bold text-lg transition-all duration-200
-                                        ${
-                                            item.isActive
-                                                ? "bg-red-600 text-white shadow-lg transform scale-105"
-                                                : "text-gray-700 hover:bg-red-50 hover:text-red-600 hover:scale-105"
+                                        ${item.isActive
+                                            ? "bg-red-600 text-white shadow-lg transform scale-105"
+                                            : "text-gray-700 hover:bg-red-50 hover:text-red-600 hover:scale-105"
                                         }
                                     `}
                                 >

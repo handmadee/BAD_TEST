@@ -43,11 +43,14 @@ public class FileUploadController {
     
     public FileUploadController() {
         try {
+            log.info("Creating upload directories at: {}", uploadDir.toAbsolutePath());
             Files.createDirectories(uploadDir);
             Files.createDirectories(uploadDir.resolve(AppConstants.COURT_IMAGES_DIR));
             Files.createDirectories(uploadDir.resolve(AppConstants.USER_IMAGES_DIR));
             Files.createDirectories(uploadDir.resolve(AppConstants.POST_IMAGES_DIR));
+            log.info("Upload directories created successfully");
         } catch (Exception ex) {
+            log.error("Could not create upload directory at: {} - Error: {}", uploadDir.toAbsolutePath(), ex.getMessage());
             throw new RuntimeException("Could not create upload directory!", ex);
         }
     }

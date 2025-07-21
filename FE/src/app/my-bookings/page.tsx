@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { authService, bookingService } from "@/lib";
+import { fakeBookingService } from "@/lib/fake-booking-service";
 import type { Booking, User } from "@/types/api";
 import Header from "@/components/layout/Header";
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -34,8 +35,21 @@ export default function MyBookingsPage() {
     const loadBookings = async () => {
         setLoading(true);
         try {
-            const response = await bookingService.getMyBookings();
-            setBookings(response.data.content || []);
+            // Load fake bookings from localStorage first
+            const fakeBookings = fakeBookingService.getAllBookings();
+
+            // Try to load real bookings from API
+            let realBookings: Booking[] = [];
+            try {
+                const response = await bookingService.getMyBookings();
+                realBookings = response.data.content || [];
+            } catch (error) {
+                console.log("Could not load real bookings, using fake data only:", error);
+            }
+
+            // Combine fake and real bookings, fake bookings first for demo
+            const allBookings = [...fakeBookings, ...realBookings];
+            setBookings(allBookings);
         } catch (error) {
             console.error("Error loading bookings:", error);
         } finally {

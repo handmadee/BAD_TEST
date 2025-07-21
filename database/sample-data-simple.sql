@@ -8,15 +8,15 @@ USE badminton_management;
 -- 1. SAMPLE USERS
 -- =====================================================
 INSERT INTO users (username, email, phone, password_hash, full_name, date_of_birth, gender, bio, location, skill_level, preferred_sports, role, status, facebook_url) VALUES
-('admin', 'admin@badminton.vn', '0901000000', '$2b$10$dummy_hash_admin', 'Quản trị viên', '1990-01-01', 'MALE', 'Quản trị viên hệ thống', 'Hà Nội', 'PROFESSIONAL', 'BADMINTON,PICKLEBALL', 'ADMIN', 'ACTIVE', NULL),
+('admin', 'admin@badminton.vn', '0901000000', '$2b$10$dummy_hash_admin', 'Quản trị viên', '1990-01-01', 'MALE', 'Quản trị viên hệ thống', 'Hà Nội', 'EXCELLENT', 'BADMINTON,PICKLEBALL', 'ADMIN', 'ACTIVE', NULL),
 
-('thaochi', 'thaochi@gmail.com', '0901234567', '$2b$10$dummy_hash_thaochi', 'Nguyễn Thảo Chi', '1995-08-15', 'FEMALE', 'Chủ sân cầu lông tại Đà Nẵng', 'Đà Nẵng', 'INTERMEDIATE', 'BADMINTON', 'COURT_OWNER', 'ACTIVE', 'https://facebook.com/thaochi'),
+('thaochi', 'thaochi@gmail.com', '0901234567', '$2b$10$dummy_hash_thaochi', 'Nguyễn Thảo Chi', '1995-08-15', 'FEMALE', 'Chủ sân cầu lông tại Đà Nẵng', 'Đà Nẵng', 'GOOD', 'BADMINTON', 'COURT_OWNER', 'ACTIVE', 'https://facebook.com/thaochi'),
 
-('minhhoang', 'minhhoang@gmail.com', '0907654321', '$2b$10$dummy_hash_minhhoang', 'Trần Minh Hoàng', '1992-03-22', 'MALE', 'Chủ sân thể thao', 'Đà Nẵng', 'ADVANCED', 'PICKLEBALL,BADMINTON', 'COURT_OWNER', 'ACTIVE', 'https://facebook.com/minhhoang'),
+('minhhoang', 'minhhoang@gmail.com', '0907654321', '$2b$10$dummy_hash_minhhoang', 'Trần Minh Hoàng', '1992-03-22', 'MALE', 'Chủ sân thể thao', 'Đà Nẵng', 'EXCELLENT', 'PICKLEBALL,BADMINTON', 'COURT_OWNER', 'ACTIVE', 'https://facebook.com/minhhoang'),
 
-('user1', 'user1@gmail.com', '0912345678', '$2b$10$dummy_hash_user1', 'Lê Văn Tùng', '1988-12-10', 'MALE', 'Người chơi cầu lông nghiệp dư', 'TP.HCM', 'ADVANCED', 'BADMINTON', 'USER', 'ACTIVE', NULL),
+('user1', 'user1@gmail.com', '0912345678', '$2b$10$dummy_hash_user1', 'Lê Văn Tùng', '1988-12-10', 'MALE', 'Người chơi cầu lông nghiệp dư', 'TP.HCM', 'GOOD', 'BADMINTON', 'USER', 'ACTIVE', NULL),
 
-('user2', 'user2@gmail.com', '0923456789', '$2b$10$dummy_hash_user2', 'Phạm Thị Mai', '1993-05-20', 'FEMALE', 'Mới học chơi pickleball', 'Hà Nội', 'BEGINNER', 'PICKLEBALL', 'USER', 'ACTIVE', NULL),
+('user2', 'user2@gmail.com', '0923456789', '$2b$10$dummy_hash_user2', 'Phạm Thị Mai', '1993-05-20', 'FEMALE', 'Mới học chơi pickleball', 'Hà Nội', 'WEAK', 'PICKLEBALL', 'USER', 'ACTIVE', NULL),
 
 ('user3', 'user3@gmail.com', '0934567890', '$2b$10$dummy_hash_user3', 'Hoàng Minh Đức', '1990-11-08', 'MALE', 'Chơi cầu lông từ nhỏ', 'Đà Nẵng', 'PROFESSIONAL', 'BADMINTON', 'USER', 'ACTIVE', NULL),
 

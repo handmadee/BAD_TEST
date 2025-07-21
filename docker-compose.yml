@@ -1,0 +1,70 @@
+version: "3.8"
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: badminton_mysql
+    environment:
+      MYSQL_DATABASE: badminton_management
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_USER: badminton
+      MYSQL_PASSWORD: badminton123
+    ports:
+      - "3308:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./database/schema-simple.sql:/docker-entrypoint-initdb.d/01-schema.sql
+      - ./database/sample-data-simple.sql:/docker-entrypoint-initdb.d/02-data.sql
+    networks:
+      - badminton_network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: badminton_redis
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - badminton_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      timeout: 10s
+      retries: 5
+
+  backend:
+    build:
+      context: ./BE
+      dockerfile: Dockerfile
+    container_name: badminton_backend
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/badminton_management?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: root
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_PROFILES_ACTIVE: docker
+    ports:
+      - "8081:8081"
+    volumes:
+      - ./BE/uploads:/app/uploads
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - badminton_network
+    restart: unless-stopped
+
+volumes:
+  mysql_data:
+  redis_data:
+
+networks:
+  badminton_network:
+    driver: bridge
