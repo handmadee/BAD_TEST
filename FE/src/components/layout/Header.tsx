@@ -106,7 +106,7 @@ export default function Header() {
                             {/* Logo lớn hơn */}
                             <div className="relative w-14 h-14 rounded-xl overflow-hidden shadow-md">
                                 <Image
-                                    src="/logos/logo.jpg"
+                                    src="/zonehub_logo.jpg"
                                     alt="BadmintonApp Logo"
                                     fill
                                     sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
@@ -117,10 +117,7 @@ export default function Header() {
                             {/* Tên website to và đậm */}
                             <div className="flex flex-col">
                                 <span className="text-2xl font-bold text-red-600 leading-tight">
-                                    BadmintonApp
-                                </span>
-                                <span className="text-sm text-gray-500 font-medium">
-                                    Đặt sân cầu lông
+                                    ZoneHub
                                 </span>
                             </div>
                         </Link>
